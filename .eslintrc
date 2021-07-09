@@ -1,0 +1,84 @@
+{
+   "parser": "babel-eslint",
+   "env": {
+      "commonjs": true,
+      "es6": true,
+      "browser": true
+   },
+   "plugins": ["react", "react-hooks"],
+   "extends": ["eslint:recommended", "plugin:react/recommended"],
+   "parserOptions": {
+      "ecmaVersion": 9,
+      "sourceType": "module",
+      "ecmaFeatures": {
+         "jsx": true,
+         "modules": true,
+         "experimentalObjectRestSpread": true
+      }
+   },
+   "rules": {
+      "indent": [
+         "off",
+         3,
+         {
+            "SwitchCase": 1,
+            "MemberExpression": "off"
+         }
+      ],
+      "quotes": ["warn", "single"],
+      "semi": ["error", "always"],
+      "no-undef": 1,
+      "no-unused-vars": 1,
+      "space-before-blocks": "error",
+      "keyword-spacing": [
+         "error",
+         {
+            "before": true
+         }
+      ],
+      "space-infix-ops": [
+         "error",
+         {
+            "int32Hint": false
+         }
+      ],
+      "no-redeclare": "off",
+      "no-console": "warn",
+      "brace-style": [
+         "error",
+         "1tbs",
+         {
+            "allowSingleLine": true
+         }
+      ],
+      "no-multiple-empty-lines": [
+         "warn",
+         {
+            "max": 1,
+            "maxEOF": 1
+         }
+      ],
+      "key-spacing": [
+         "error",
+         {
+            "beforeColon": false
+         }
+      ],
+      "spaced-comment": [
+         "error",
+         "always",
+         {
+            "exceptions": ["/"]
+         }
+      ],
+      "no-trailing-spaces": "warn",
+
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+
+      "react/no-deprecated": 1,
+      "react/display-name": 1,
+      "react/prop-types": 1,
+      "react/no-string-refs": 1
+   }
+}

@@ -12,10 +12,7 @@ import 'react-bootstrap-table-next/dist/react-bootstrap-table2.min.css';
 
 import 'chartjs-plugin-annotation';
 
-import roundTo from 'round-to';
 import numeral from 'numeral';
-
-import CryptoParamEvaluation from './CryptoParamEvaluation';
 import { evaluateParams } from './CryptoParamEvaluationService';
 
 function addHiddenKeyColumn(rows) {
@@ -47,54 +44,71 @@ const columns = [
    },
 ];
 
-const getOptions = () => ({
-   maintainAspectRatio: false,
-   legend: {
-      position: 'bottom',
-      labels: {
-         boxWidth: 1,
-      },
-   },
-   scales: {
-      yAxes: [
-         {
-            ticks: {
-               beginAtZero: true,
-            },
+const getOptions = (ref, setEndDate) => {
+   const options = {
+      maintainAspectRatio: false,
+      legend: {
+         position: 'bottom',
+         labels: {
+            boxWidth: 1,
          },
-      ],
-   },
-   elements: {
-      point: {
-         radius: 0,
-         hitRadius: 10,
-         hoverRadius: 4,
-         hoverBorderWidth: 3,
       },
-   },
-   chartArea: {
-      backgroundColor: 'rgba(0, 0, 0, 0.1)',
-   },
-   annotation: {
-      annotations: [
-         {
-            drawTime: 'afterDatasetsDraw',
-            id: 'hline',
-            type: 'line',
-            // mode: 'horizontal',
-            // scaleID: 'x-axis-0',
-            value: '5. Jun 2012',
-            borderColor: '#6610f2',
-            borderWidth: 1,
-            label: {
-               backgroundColor: 'rgba(0,0,0, 0.9)',
-               content: 'Buy',
-               enabled: true,
+      scales: {
+         yAxes: [
+            {
+               ticks: {
+                  beginAtZero: true,
+               },
             },
+         ],
+      },
+      elements: {
+         point: {
+            radius: 0,
+            hitRadius: 10,
+            hoverRadius: 4,
+            hoverBorderWidth: 3,
          },
-      ],
-   },
-});
+      },
+      chartArea: {
+         backgroundColor: 'rgba(0, 0, 0, 0.1)',
+      },
+      annotation: {
+         annotations: [
+            {
+               drawTime: 'afterDatasetsDraw',
+               id: 'hline',
+               type: 'line',
+               // mode: 'horizontal',
+               // scaleID: 'x-axis-0',
+               value: '5. Jun 2012',
+               borderColor: '#6610f2',
+               borderWidth: 1,
+               label: {
+                  backgroundColor: 'rgba(0,0,0, 0.9)',
+                  content: 'Buy',
+                  enabled: true,
+               },
+            },
+         ],
+      },
+   };
+   if (ref !== undefined) {
+      options.onClick = (event, item) => {
+         if (item.length === 0) {
+            return;
+         }
+         const activePoint = ref.current.chartInstance.getElementAtEvent(event)[0];
+         const data = activePoint._chart.data;
+         const index = item[0]._index;
+         const endDateStr = data.labels[index];
+         const endMoment = moment(endDateStr, 'D. MMM YYYY');
+         setEndDate(endMoment.format('YYYY-MM-DD'));
+         console.log('>>>> EndMoment :>> ', endMoment.format('YYYY-MM-DD'));
+      };
+   }
+   return options;
+};
 
 function getAnnotation(value, label, color, counter) {
    return {
@@ -159,180 +173,109 @@ const LINE_100 = 100;
 // const LINE_X = 12;
 // const TOLERANCE = 4;
 
-// ChainLink:
-// 50d/10% => 12.2k
-// 30d/10% => 24.3k
-// 30d/5% => 50.4k
-// 20d/6% => 48.4k
-
-// Bitcoin:
-// 50d/10% => 15.2k
-// 30d/10% => 7.3k
-// 30d/5% => 7.7k
-// 20d/6% => 5.2k
-// 100d/10% => 5.9k
-// 40d/10% => 7.5k
-// 40d/15% => 8.5k
-// 45d/12% => 12.6k
-// 60d/10% => 13.7k
-// 60d/5% => 16.0k
-// 40d/5% => 11.8k
-
-const start = 0;
+const start = 1500;
 
 function TestChart() {
+   const lineRef = useRef(null);
+
    // const globalStart = moment('2016-09-05').unix();
+   const globalStart = moment('2020-05-22').unix();
+   const globalEnd = moment('2021-05-17').unix();
+   console.time('first');
+   const globalData = getResult(rawData, globalStart, undefined);
+   console.timeEnd('first');
 
-   const [done, setDone] = useState(false);
-   const [counter, setCounter] = useState(false);
-   const [chart3d, setChart3d] = useState(false);
-
-   const workerRef = useRef(null);
-
-   const runWorker = (rawData, start) => {
-      const worker = new window.Worker('./worker.js');
-
-      worker.postMessage({
-         type: 'start',
-         data: rawData,
-         start,
-      });
-      //
-      worker.onerror = (err) => err;
-      worker.onmessage = (event) => {
-         const { chart3d: newChart3d, counter: newCounter } = event.data;
-         console.log('chart3d :>> ', JSON.stringify(newChart3d));
-         setChart3d(newChart3d);
-         setCounter(newCounter);
-         setDone(true);
-         worker.terminate();
-      };
-      workerRef.current = worker;
-   };
-
-   const stopWorker = () => {
-      workerRef.current.terminate();
-   };
-
-   // useEffect(() => {
-   //    workerRef.current = new Worker('worker.js');
-   //    workerRef.current.addEventListener('message', (event) => {
-   //       const { chart3d: newChart3d, counter: newCounter } = event.data;
-   //       setChart3d(newChart3d);
-   //       setCounter(newCounter);
-   //       setDone(true);
-   //    });
-   // }, []);
-
-   // const globalStart = moment('2020-05-22').unix();
-   // const globalEnd = moment('2021-05-17').unix();
-   // console.time('first');
-   // const globalData = getResult(rawData, globalStart, undefined);
-   // console.timeEnd('first');
+   const [evaStartStr, setEvaStartStr] = useState('2020-05-22');
+   const [evaEndStr, setEvaEndStr] = useState('2021-04-15');
+   const [evaOptions, setEvaOptions] = useState(getOptions(lineRef, setEvaEndStr));
 
    // const evaStart = moment('2016-09-05').unix();
-   // const evaStart = moment('2020-05-22').unix();
-   // const evaEnd = moment('2021-01-31').unix();
-   // const evaData = getResult(rawData, evaStart, undefined, globalData);
+   const evaStart = moment(evaStartStr).unix();
+   const evaEnd = moment(evaEndStr).unix();
+   const evaData = getResult(rawData, evaStart, evaEnd, globalData);
+
+   useEffect(() => {
+      setEvaOptions(getOptions(lineRef, setEvaEndStr));
+   }, [evaEndStr]);
 
    return (
       <>
-         {done ? (
-            <>
-               <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Counter ${counter}/${
-                  rawData.length - start - 200
-               }`}</div>
+         <div
+            style={{ fontSize: '26px', margin: '20px 0px' }}
+         >{`Optimum data evaluation (entire plot data ${moment.unix(globalStart).format('DD.MM.YYYY')} - ${moment
+            .unix(globalEnd)
+            .format('DD.MM.YYYY')}):`}</div>
+         <div
+            style={{
+               display: 'flex',
+               justifyContent: 'space-around',
+               width: '25%',
+               margin: '20px 0px',
+               fontSize: '16px',
+            }}
+         >
+            <div>{`Balance: ${numeral(globalData.topX[0].savings).format('0,0.000a')}`}</div>
+            <div>{`Transactions: ${globalData.topX[0].transactions}`}</div>
+            <div>{`Days line: ${globalData.topX[0].days}`}</div>
+            <div>{`Tolerance: ${globalData.topX[0].tolerance}`}</div>
+         </div>
+         <div style={{ position: 'relative', height: '600px', width: '100%' }}>
+            <Line
+               data={globalData.chartData}
+               options={getOptionsWithAnnotations(getOptions(), globalData.annotations)}
+            />
+         </div>
+         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Evaluated data (${moment
+            .unix(evaStart)
+            .format('DD.MM.YYYY')} - ${moment.unix(evaEnd).format('DD.MM.YYYY')}):`}</div>
+         <div
+            style={{
+               display: 'flex',
+               justifyContent: 'space-around',
+               width: '25%',
+               margin: '20px 0px',
+               fontSize: '16px',
+            }}
+         >
+            <div>{`Balance: ${numeral(evaData.topX[0].savings).format('0,0.000a')}`}</div>
+            <div>{`Transactions: ${evaData.topX[0].transactions}`}</div>
+            <div>{`Days line: ${evaData.topX[0].days}`}</div>
+            <div>{`Tolerance: ${evaData.topX[0].tolerance}`}</div>
+         </div>
+         <div style={{ position: 'relative', height: '600px', width: '100%' }}>
+            <Line
+               ref={lineRef}
+               data={evaData.chartData}
+               options={getOptionsWithAnnotations(evaOptions, evaData.annotations)}
+            />
+         </div>
+         <div style={{ position: 'relative', width: '100%' }}>
+            <div style={{ fontSize: '26px', margin: '20px 0px' }}>Evaluation</div>
+            <div style={{ display: 'flex' }}>
                <div style={{ width: '50%' }}>
-                  <Plot data={[{ z: chart3d, type: 'surface' }]} />
+                  {evaStart !== undefined && (
+                     <div style={{ fontSize: '16px', margin: '20px 0px' }}>
+                        <div>{`Evalution start: ${moment.unix(evaStart).format('DD.MM.YYYY')}`}</div>
+                        <div>{`Evalution end: ${moment.unix(evaEnd).format('DD.MM.YYYY')}`}</div>
+                     </div>
+                  )}
+                  <Plot data={[{ z: evaData.chart3dData, type: 'surface' }]} />
                </div>
-            </>
-         ) : (
-            <>
-               <button onClick={() => runWorker(rawData, start)}>Start</button>
-               <button
-                  onClick={() => {
-                     stopWorker();
-                  }}
-               >
-                  Stop
-               </button>
-            </>
-         )}
+               <div style={{ width: '50%', fontSize: '14px', display: 'flex', justifyContent: 'center' }}>
+                  <BootstrapTable
+                     keyField='hiddenKey'
+                     data={addHiddenKeyColumn(evaData.topX)}
+                     columns={columns}
+                     bodyClasses='table-wrap-word'
+                     classes='fixed-table'
+                     bootstrap4
+                     striped
+                     hover
+                  />
+               </div>
+            </div>
+         </div>
       </>
-
-      // <>
-      //    <div
-      //       style={{ fontSize: '26px', margin: '20px 0px' }}
-      //    >{`Optimum data evaluation (entire plot data ${moment.unix(globalStart).format('DD.MM.YYYY')} - ${moment
-      //       .unix(globalEnd)
-      //       .format('DD.MM.YYYY')}):`}</div>
-      //    <div
-      //       style={{
-      //          display: 'flex',
-      //          justifyContent: 'space-around',
-      //          width: '25%',
-      //          margin: '20px 0px',
-      //          fontSize: '16px',
-      //       }}
-      //    >
-      //       <div>{`Balance: ${numeral(globalData.topX[0].savings).format('0,0.000a')}`}</div>
-      //       <div>{`Transactions: ${globalData.topX[0].transactions}`}</div>
-      //       <div>{`Days line: ${globalData.topX[0].days}`}</div>
-      //       <div>{`Tolerance: ${globalData.topX[0].tolerance}`}</div>
-      //    </div>
-      //    <div style={{ position: 'relative', height: '600px', width: '100%' }}>
-      //       <Line
-      //          data={globalData.chartData}
-      //          options={getOptionsWithAnnotations(getOptions(), globalData.annotations)}
-      //       />
-      //    </div>
-      //    <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Evaluated data (${moment
-      //       .unix(evaStart)
-      //       .format('DD.MM.YYYY')} - ${moment.unix(evaEnd).format('DD.MM.YYYY')}):`}</div>
-      //    <div
-      //       style={{
-      //          display: 'flex',
-      //          justifyContent: 'space-around',
-      //          width: '25%',
-      //          margin: '20px 0px',
-      //          fontSize: '16px',
-      //       }}
-      //    >
-      //       <div>{`Balance: ${numeral(evaData.topX[0].savings).format('0,0.000a')}`}</div>
-      //       <div>{`Transactions: ${evaData.topX[0].transactions}`}</div>
-      //       <div>{`Days line: ${evaData.topX[0].days}`}</div>
-      //       <div>{`Tolerance: ${evaData.topX[0].tolerance}`}</div>
-      //    </div>
-      //    <div style={{ position: 'relative', height: '600px', width: '100%' }}>
-      //       <Line data={evaData.chartData} options={getOptionsWithAnnotations(getOptions(), evaData.annotations)} />
-      //    </div>
-      //    <div style={{ position: 'relative', width: '100%' }}>
-      //       <div style={{ fontSize: '26px', margin: '20px 0px' }}>Evaluation</div>
-      //       <div style={{ display: 'flex' }}>
-      //          <div style={{ width: '50%' }}>
-      //             {evaStart !== undefined && (
-      //                <div style={{ fontSize: '16px', margin: '20px 0px' }}>
-      //                   <div>{`Evalution start: ${moment.unix(evaStart).format('DD.MM.YYYY')}`}</div>
-      //                   <div>{`Evalution end: ${moment.unix(evaEnd).format('DD.MM.YYYY')}`}</div>
-      //                </div>
-      //             )}
-      //             <Plot data={[{ z: evaData.chart3dData, type: 'surface' }]} />
-      //          </div>
-      //          <div style={{ width: '50%', fontSize: '14px', display: 'flex', justifyContent: 'center' }}>
-      //             <BootstrapTable
-      //                keyField='hiddenKey'
-      //                data={addHiddenKeyColumn(evaData.topX)}
-      //                columns={columns}
-      //                bodyClasses='table-wrap-word'
-      //                classes='fixed-table'
-      //                bootstrap4
-      //                striped
-      //                hover
-      //             />
-      //          </div>
-      //       </div>
-      //    </div>
-      // </>
    );
 }
 
@@ -348,7 +291,7 @@ function getResult(rawData, start, end, global) {
    // console.log('line200 :>> ', line200);
 
    if (global) {
-      // console.log('labels[labels.length - 1] :>> ', labels[labels.length - 1]);
+      console.log('labels[labels.length - 1] :>> ', labels[labels.length - 1]);
       annotations.push(getAnnotation(labels[labels.length - 1], 'End', '#ffc107', 9999));
    }
    const chartData = {
@@ -357,7 +300,7 @@ function getResult(rawData, start, end, global) {
          getNewDataSet(global ? global.plotData : data, 'Currency'),
          getNewDataSet(global ? globalLines.minusLimit : lineXMinus, `- ${tolerance}%`, '#6610f2'),
          getNewDataSet(global ? globalLines.plusLimit : lineXPlus, `+ ${tolerance}%`, '#f86c6b'),
-         getNewDataSet(global ? global.plotData : lineX, `${days} days`, '#20c997'),
+         getNewDataSet(global ? globalLines.xDayLine : lineX, `${days} days`, '#20c997'),
       ],
    };
 

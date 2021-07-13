@@ -6,7 +6,7 @@ const rawData = require('./data/LongHistoryBTC.json');
 const calc3dData = require('./data/chart3dCalcRes_BTC_long.json');
 import Plot from 'react-plotly.js';
 
-const start = 0;
+const START = 100;
 
 function TestChart() {
    const [done, setDone] = useState(false);
@@ -27,7 +27,7 @@ function TestChart() {
       worker.onerror = (err) => err;
       worker.onmessage = (event) => {
          const { chart3d: newChart3d, counter: newCounter } = event.data;
-         console.log('chart3d :>> ', JSON.stringify(newChart3d));
+         console.log('>>> End: chart3d :>> ', JSON.stringify(newChart3d));
          setChart3d(newChart3d);
          setCounter(newCounter);
          setDone(true);
@@ -41,34 +41,34 @@ function TestChart() {
    };
 
    return (
-      // <>
-      //    {done ? (
-      //       <>
-      //          <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Counter ${counter}/${
-      //             rawData.length - start - 200
-      //          }`}</div>
-      //          <div style={{ width: '50%' }}>
-      //             <Plot data={[{ z: chart3d, type: 'surface' }]} />
-      //          </div>
-      //       </>
-      //    ) : (
-      //       <>
-      //          <button onClick={() => runWorker(rawData, start)}>Start</button>
-      //          <button
-      //             onClick={() => {
-      //                stopWorker();
-      //             }}
-      //          >
-      //             Stop
-      //          </button>
-      //       </>
-      //    )}
-      // </>
-
       <>
-         <div>bla</div>
-         <Plot data={[{ z: calc3dData, type: 'surface' }]} />
+         {done ? (
+            <>
+               <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Counter ${counter}/${
+                  rawData.length - START
+               }`}</div>
+               <div style={{ width: '50%' }}>
+                  <Plot data={[{ z: chart3d, type: 'surface' }]} />
+               </div>
+            </>
+         ) : (
+            <>
+               <button onClick={() => runWorker(rawData, START)}>Start</button>
+               <button
+                  onClick={() => {
+                     stopWorker();
+                  }}
+               >
+                  Stop
+               </button>
+            </>
+         )}
       </>
+
+      // <>
+      //    <div>bla</div>
+      //    <Plot data={[{ z: calc3dData, type: 'surface' }]} />
+      // </>
    );
 }
 

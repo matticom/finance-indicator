@@ -33,6 +33,8 @@ function getLabels(data) {
 // 60d/5% => 16.0k
 // 40d/5% => 11.8k
 
+const INITIAL_MONEY = 1000;
+
 function TestChart() {
    const start = moment('2016-09-05').unix();
    const end = moment('2017-11-25').unix();
@@ -64,11 +66,11 @@ function TestChart() {
    daysParams.forEach((daysParam) => {
       const tolerancesRes = [];
       toleranceParams.forEach((toleranceParam) => {
-         const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(
-            daysParam,
-            data,
-            toleranceParam,
-         );
+         const {
+            xDayLine: lineX,
+            plusLimit: lineXPlus,
+            minusLimit: lineXMinus,
+         } = getXDayLineData(daysParam, data, toleranceParam);
          const { savings, date, transactions } = calcProfit(daysParam, labels, data, lineXMinus, lineXPlus);
          tolerancesRes.push(savings);
          top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions });
@@ -133,7 +135,6 @@ function getXDayLineData(days, data, tolerance) {
 }
 
 function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
-   const INITIAL_MONEY = 1000;
    let pieces = 0;
    let currentMoney = INITIAL_MONEY;
    let transactionCount = 0;

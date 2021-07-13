@@ -33,8 +33,8 @@ function getLabels(data) {
 
 const MIN_TOLERANCE = 3;
 const MAX_TOLERANCE = 30;
-const MIN_DAYS = 1;
-const MAX_DAYS = 150;
+const MIN_DAYS = 10;
+const MAX_DAYS = 200;
 
 export function evaluateParams(rawData, start, end) {
    let sourceData = rawData;
@@ -46,7 +46,8 @@ export function evaluateParams(rawData, start, end) {
          sourceData = rawData.filter((data) => data.date >= start);
       }
    }
-   // const sourceData = rawData.slice(Math.round((rawData.length / 3) * 2));
+
+   // const sourceData = rawData.slice();
    // const sourceData = rawData;
 
    const labels = getLabels(sourceData);
@@ -71,11 +72,11 @@ export function evaluateParams(rawData, start, end) {
    daysParams.forEach((daysParam) => {
       const tolerancesRes = [];
       toleranceParams.forEach((toleranceParam) => {
-         const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(
-            daysParam,
-            data,
-            toleranceParam,
-         );
+         const {
+            xDayLine: lineX,
+            plusLimit: lineXPlus,
+            minusLimit: lineXMinus,
+         } = getXDayLineData(daysParam, data, toleranceParam);
          const { savings, date, transactions } = calcProfit(daysParam, labels, data, lineXMinus, lineXPlus);
          tolerancesRes.push(savings);
          top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions });

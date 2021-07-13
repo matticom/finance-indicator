@@ -173,6 +173,8 @@ const LINE_100 = 100;
 // const LINE_X = 12;
 // const TOLERANCE = 4;
 
+const INITIAL_MONEY = 1000;
+
 const start = 1500;
 
 function TestChart() {
@@ -181,8 +183,12 @@ function TestChart() {
    // const globalStart = moment('2016-09-05').unix();
    const globalStart = moment('2020-05-22').unix();
    const globalEnd = moment('2021-05-17').unix();
+
+   // const globalStart = moment('2013-10-01').unix();
+   // const globalEnd = moment('2014-01-08').unix();
+
    console.time('first');
-   const globalData = getResult(rawData, globalStart, undefined);
+   const globalData = getResult(rawData, globalStart, globalEnd);
    console.timeEnd('first');
 
    const [evaStartStr, setEvaStartStr] = useState('2020-05-22');
@@ -210,7 +216,7 @@ function TestChart() {
             style={{
                display: 'flex',
                justifyContent: 'space-around',
-               width: '25%',
+               width: '50%',
                margin: '20px 0px',
                fontSize: '16px',
             }}
@@ -237,7 +243,7 @@ function TestChart() {
             style={{
                display: 'flex',
                justifyContent: 'space-around',
-               width: '25%',
+               width: '50%',
                margin: '20px 0px',
                fontSize: '16px',
             }}
@@ -291,7 +297,7 @@ function TestChart() {
 function getResult(rawData, start, end, global) {
    const { chart3dData, topX, data, labels } = evaluateParams([...rawData], start, end);
 
-   if (topX.length === 0) {
+   if (topX.length === 0 || (topX.length > 0 && topX[0].savings <= INITIAL_MONEY)) {
       return {
          chartData: {
             labels: global ? global.plotLabels : labels,
@@ -355,7 +361,6 @@ function getXDayLineData(days, data, tolerance) {
 function setBuySellSignals(days, labels, lineData, lineDataMinus5, lineDataPlus5) {
    const annotations = [];
 
-   const INITIAL_MONEY = 1000;
    let pieces = 0;
    let currentMoney = INITIAL_MONEY;
    let transactionCount = 0;

@@ -1,5 +1,3 @@
-let stopp = false;
-
 onmessage = function (event) {
    const { type, data, start } = event.data;
    if (type === 'start') {
@@ -9,9 +7,11 @@ onmessage = function (event) {
 };
 
 const MIN_TOLERANCE = 3;
-const MAX_TOLERANCE = 30;
-const MIN_DAYS = 1;
+const MAX_TOLERANCE = 20;
+const MIN_DAYS = 10;
 const MAX_DAYS = 150;
+
+const INITIAL_MONEY = 1000;
 
 function calcSuperPosition(start, rawData) {
    let counter = 0;
@@ -19,12 +19,27 @@ function calcSuperPosition(start, rawData) {
 
    // console.log('rawData.length - 200 :>> ', rawData.length - 200);
 
-   for (let index = start; index < rawData.length - 200; index++) {
+   for (let index = start; index < rawData.length; index++) {
       console.time('cycle');
-      const lineData = rawData.slice(index);
-      const { chart3dData } = evaluateParams([...lineData]);
+      const lineData = rawData.slice(0, index);
+
+      // const globalStart = 1590098400; // moment('2020-05-22').unix();
+      // const globalEnd = 1597010400; // moment('2020-08-10').unix();
+      // const lineData = rawData.filter((data) => data.date >= globalStart && data.date <= globalEnd);
+
+      // console.log('lineData :>> ', JSON.stringify(lineData));
+      const { chart3dData, topX } = evaluateParams([...lineData]);
+      // console.log('chart3dData :>> ', JSON.stringify(chart3dData));
+
+      if (topX.length === 0 || (topX.length > 0 && topX[0].savings <= INITIAL_MONEY)) {
+         counter++;
+         console.log(`counter ${counter}/${rawData.length - start} (skipped: ${topX[0].savings})`);
+         console.timeEnd('cycle');
+         continue;
+      }
+
       counter++;
-      console.log(`counter ${counter}/${rawData.length - 200 - start} `, counter);
+      console.log(`counter ${counter}/${rawData.length - start} `);
       if (chart3d === null) {
          // console.log('chart3d === null :>> ');
          chart3d = chart3dData;
@@ -84,11 +99,11 @@ function evaluateParams(rawData, start, end) {
    daysParams.forEach((daysParam) => {
       const tolerancesRes = [];
       toleranceParams.forEach((toleranceParam) => {
-         const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(
-            daysParam,
-            data,
-            toleranceParam,
-         );
+         const {
+            xDayLine: lineX,
+            plusLimit: lineXPlus,
+            minusLimit: lineXMinus,
+         } = getXDayLineData(daysParam, data, toleranceParam);
          const { savings, transactions } = calcProfit(daysParam, data, lineXMinus, lineXPlus);
          tolerancesRes.push(savings);
          top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions });
@@ -132,7 +147,6 @@ function getXDayLineData(days, data, tolerance) {
 }
 
 function calcProfit(days, lineData, lineDataMinus, lineDataPlus) {
-   const INITIAL_MONEY = 1000;
    let pieces = 0;
    let currentMoney = INITIAL_MONEY;
    let transactionCount = 0;

@@ -187,24 +187,25 @@ function TestChart() {
 
    const [evaStartStr, setEvaStartStr] = useState('2020-05-22');
    const [evaEndStr, setEvaEndStr] = useState('2021-04-15');
-   const [evaOptions, setEvaOptions] = useState(getOptions(lineRef, setEvaEndStr));
 
    // const evaStart = moment('2016-09-05').unix();
    const evaStart = moment(evaStartStr).unix();
    const evaEnd = moment(evaEndStr).unix();
-   const evaData = getResult(rawData, evaStart, evaEnd, globalData);
+   // const evaData = getResult(rawData, evaStart, evaEnd, globalData);
+
+   const [evaOptions, setEvaOptions] = useState(getOptions(lineRef, setEvaEndStr));
+   const [evaData, setEvaData] = useState(getResult(rawData, evaStart, evaEnd, globalData));
 
    useEffect(() => {
       setEvaOptions(getOptions(lineRef, setEvaEndStr));
-   }, [evaEndStr]);
+      setEvaData(getResult(rawData, evaStart, evaEnd, globalData));
+   }, [evaEndStr, evaStart, evaEnd]);
 
    return (
       <>
-         <div
-            style={{ fontSize: '26px', margin: '20px 0px' }}
-         >{`Optimum data evaluation (entire plot data ${moment.unix(globalStart).format('DD.MM.YYYY')} - ${moment
-            .unix(globalEnd)
-            .format('DD.MM.YYYY')}):`}</div>
+         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Optimum data evaluation (entire plot data ${moment
+            .unix(globalStart)
+            .format('DD.MM.YYYY')} - ${moment.unix(globalEnd).format('DD.MM.YYYY')}):`}</div>
          <div
             style={{
                display: 'flex',
@@ -214,10 +215,14 @@ function TestChart() {
                fontSize: '16px',
             }}
          >
-            <div>{`Balance: ${numeral(globalData.topX[0].savings).format('0,0.000a')}`}</div>
-            <div>{`Transactions: ${globalData.topX[0].transactions}`}</div>
-            <div>{`Days line: ${globalData.topX[0].days}`}</div>
-            <div>{`Tolerance: ${globalData.topX[0].tolerance}`}</div>
+            {globalData.topX.length !== 0 && (
+               <>
+                  <div>{`Balance: ${numeral(globalData.topX[0].savings).format('0,0.000a')}`}</div>
+                  <div>{`Transactions: ${globalData.topX[0].transactions}`}</div>
+                  <div>{`Days line: ${globalData.topX[0].days}`}</div>
+                  <div>{`Tolerance: ${globalData.topX[0].tolerance}`}</div>
+               </>
+            )}
          </div>
          <div style={{ position: 'relative', height: '600px', width: '100%' }}>
             <Line
@@ -237,10 +242,14 @@ function TestChart() {
                fontSize: '16px',
             }}
          >
-            <div>{`Balance: ${numeral(evaData.topX[0].savings).format('0,0.000a')}`}</div>
-            <div>{`Transactions: ${evaData.topX[0].transactions}`}</div>
-            <div>{`Days line: ${evaData.topX[0].days}`}</div>
-            <div>{`Tolerance: ${evaData.topX[0].tolerance}`}</div>
+            {evaData.topX.length !== 0 && (
+               <>
+                  <div>{`Balance: ${numeral(evaData.topX[0].savings).format('0,0.000a')}`}</div>
+                  <div>{`Transactions: ${evaData.topX[0].transactions}`}</div>
+                  <div>{`Days line: ${evaData.topX[0].days}`}</div>
+                  <div>{`Tolerance: ${evaData.topX[0].tolerance}`}</div>
+               </>
+            )}
          </div>
          <div style={{ position: 'relative', height: '600px', width: '100%' }}>
             <Line
@@ -282,6 +291,20 @@ function TestChart() {
 function getResult(rawData, start, end, global) {
    const { chart3dData, topX, data, labels } = evaluateParams([...rawData], start, end);
 
+   if (topX.length === 0) {
+      return {
+         chartData: {
+            labels: global ? global.plotLabels : labels,
+            datasets: [getNewDataSet(global ? global.plotData : data, 'Currency')],
+         },
+         chart3dData,
+         annotations: [],
+         topX,
+         plotData: data,
+         plotLabels: labels,
+      };
+   }
+
    const { savings, days, tolerance, transactions } = topX[0];
 
    const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(days, data, tolerance);
@@ -292,7 +315,7 @@ function getResult(rawData, start, end, global) {
 
    if (global) {
       console.log('labels[labels.length - 1] :>> ', labels[labels.length - 1]);
-      annotations.push(getAnnotation(labels[labels.length - 1], 'End', '#ffc107', 9999));
+      annotations.push(getAnnotation(labels[labels.length - 1], 'End', '#ffc107', labels.length + 999));
    }
    const chartData = {
       labels: global ? global.plotLabels : labels,

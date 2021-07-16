@@ -137,7 +137,7 @@ function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
    let lastAction = 'sold';
 
    let lastSold = { savings: INITIAL_MONEY, date: labels[0] };
-   let currentState = { lastAction: '', date: '' };
+   let currentState = { lastAction: '', lastActionDate: '', price: 0 };
 
    for (let index = days; index < lineData.length; index++) {
       const price = lineData[index];
@@ -155,6 +155,7 @@ function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
          pieces = currentMoney / price;
          currentMoney = 0;
          transactionCount++;
+         currentState = { ...currentState, lastAction, lastActionDate: label };
          // console.log(`BUY :>> ${label} (pieces: ${pieces} / price: ${price})`);
       }
       // console.log('lastSoldDiff :>> ', lastSoldDiff);
@@ -170,8 +171,9 @@ function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
          // console.log(`SOLD :>> ${label} (savings: ${currentMoney} / price: ${price})`);
          transactionCount++;
          lastSold = { savings: currentMoney, date: label, transactions: transactionCount };
+         currentState = { ...currentState, lastAction, lastActionDate: label };
       }
-      currentState = { lastAction, date: label, price };
+      currentState = { ...currentState, price };
       counter++;
    }
    return { lastSold, currentState };

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import moment from 'moment';
 
@@ -31,10 +31,7 @@ const columns = [
    {
       text: 'Date',
       dataField: 'date',
-      formatter: (value) => {
-         console.log('value :>> ', value);
-         return moment.unix(value).format('D. MMM YYYY');
-      },
+      formatter: (value) => moment.unix(value).format('D. MMM YYYY'),
    },
    {
       text: 'Balance',
@@ -179,37 +176,62 @@ const INITIAL_MONEY = 1000;
 function TestChart() {
    const lineRef = useRef(null);
 
+   const [inputStart, setInputStart] = useState('2020-05-22');
+   const [inputEnd, setInputEnd] = useState('2020-07-17');
+
+   const [chosenStart, setChosenStart] = useState('2020-05-22');
+   const [chosenEnd, setChosenEnd] = useState('2020-07-17');
+
    // const globalStart = moment('2016-09-05').unix();
-   const globalStart = moment('2020-05-22').unix();
-   const globalEnd = moment('2021-05-17').unix();
+   const globalStart = moment(chosenStart).unix();
+   const globalEnd = moment(chosenEnd).unix();
 
    // const globalStart = moment('2013-10-01').unix();
    // const globalEnd = moment('2014-01-08').unix();
 
    console.time('first');
-   const globalData = getResult(rawData, globalStart, globalEnd);
+   const globalData = useMemo(() => getResult(rawData, globalStart, globalEnd), [globalStart, globalEnd]);
    console.timeEnd('first');
 
-   const [simuStartStr] = useState('2020-05-22');
-   const [simuEndStr, setSimuEndStr] = useState('2021-01-17');
-
    // const simuStart = moment('2016-09-05').unix();
-   const simuStart = moment(simuStartStr).unix();
-   const simuEnd = moment(simuEndStr).unix();
+   const simuStart = moment(chosenStart).unix();
+   // const simuEnd = moment('2021-01-17').unix();
+   const simuEnd = moment(chosenEnd).unix();
    // const simuData = getResult(rawData, simuStart, simuEnd, globalData);
 
-   const [simuOptions, setSimuOptions] = useState(getOptions(lineRef, setSimuEndStr));
-   const [simuData, setSimuData] = useState(calcSimulation(rawData, simuStart, simuEnd, globalData));
-
-   useEffect(() => {
-      setSimuOptions(getOptions(lineRef, setSimuEndStr));
-      setSimuData(calcSimulation(rawData, simuStart, simuEnd, globalData));
-   }, [simuEndStr, simuStart, simuEnd]);
+   const simuData = useMemo(
+      () => calcSimulation(rawData, simuStart, simuEnd, globalData),
+      [simuStart, simuEnd, globalData],
+   );
 
    const transactionCount = simuData.transactionList.length;
 
    return (
       <>
+         <div style={{ position: 'relative', width: '100%' }}>
+            <div style={{ fontSize: '26px', margin: '20px 0px' }}>Set simulation dates</div>
+            <div style={{ display: 'flex', justifyContent: 'space-around', width: '100%', margin: '20px 0px' }}>
+               <div style={{ display: 'flex', justifyContent: 'space-around', width: '75%' }}>
+                  <div style={{ fontSize: '14px' }}>
+                     {'Start: '}
+                     <input value={inputStart} onChange={(e) => setInputStart(e.target.value)}></input>
+                  </div>
+                  <div style={{ fontSize: '14px' }}>
+                     {'End: '}
+                     <input value={inputEnd} onChange={(e) => setInputEnd(e.target.value)}></input>
+                  </div>
+                  <button
+                     onClick={() => {
+                        setChosenStart(inputStart);
+                        setChosenEnd(inputEnd);
+                     }}
+                     style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
+                  >
+                     {'Go'}
+                  </button>
+               </div>
+            </div>
+         </div>
          <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Optimum data simulation (entire plot data ${moment
             .unix(globalStart)
             .format('DD.MM.YYYY')} - ${moment.unix(globalEnd).format('DD.MM.YYYY')}):`}</div>
@@ -264,12 +286,12 @@ function TestChart() {
             <Line
                ref={lineRef}
                data={simuData.chartData}
-               options={getOptionsWithAnnotations(simuOptions, simuData.annotations)}
+               options={getOptionsWithAnnotations(getOptions(), simuData.annotations)}
             />
          </div>
          <div style={{ position: 'relative', width: '100%' }}>
             <div style={{ fontSize: '26px', margin: '20px 0px' }}>Simulation</div>
-            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'center', margin: '20px 0px' }}>
                <BootstrapTable
                   keyField='hiddenKey'
                   data={addHiddenKeyColumn(simuData.transactionList)}
@@ -309,13 +331,12 @@ function calcSimulation(sourceData, start, end, global) {
       const endOfCalc = rawData[index].date;
       const dataToBeCalc = rawData.filter((data) => data.date <= endOfCalc);
       const { topX } = evaluateParams([...dataToBeCalc]);
+      const startLabel = moment.unix(dataToBeCalc[0].date).format('D. MMM YYYY');
+      const currentLabel = moment.unix(endOfCalc).format('D. MMM YYYY');
       console.log('\n\n>>>> new cycle :>> ', counter);
-      console.log('lastSavings :>> ', lastSavings);
-      console.log('lastPieces :>> ', lastPieces);
-      console.log('lastAction :>> ', lastAction);
-      console.log('lastActionDate :>> ', lastActionDate);
-      console.log('start Of cycle :>> ', moment.unix(dataToBeCalc[0].date).format('D. MMM YYYY'));
-      console.log('end Of cycle :>> ', moment.unix(endOfCalc).format('D. MMM YYYY'));
+      console.log('start Of cycle :>> ', startLabel);
+      console.log('end Of cycle :>> ', currentLabel);
+
       console.log('result :>> ', topX.length === 0 ? 'nada' : topX[0]);
 
       if (
@@ -326,10 +347,11 @@ function calcSimulation(sourceData, start, end, global) {
       }
 
       const { savings, days, tolerance, transactions, currentState } = topX[0];
-      const calcLastActionDate = moment(currentState.date, 'D. MMM YYYY').unix();
+      const calcLastActionDate = moment(currentState.lastActionDate, 'D. MMM YYYY').unix();
       const calcLastAction = currentState.lastAction;
-      const calcLastPrice = currentState.price;
-      const calcLabel = currentState.date;
+      const currentPrice = currentState.price;
+      const calcLabel = currentState.lastActionDate;
+      console.log('current Price :>> ', currentPrice);
 
       if (calcLastActionDate <= startDate || calcLastActionDate <= lastActionDate) {
          continue;
@@ -337,9 +359,9 @@ function calcSimulation(sourceData, start, end, global) {
 
       if (lastAction === 'sold' || lastAction === '') {
          if (calcLastAction === 'buy') {
-            lastPieces = lastSavings / calcLastPrice;
+            lastPieces = lastSavings / currentPrice;
             lastSavings = 0;
-            annotations.push(getAnnotation(calcLabel, 'Buy', '#6610f2', counter));
+            annotations.push(getAnnotation(currentLabel, 'Buy', '#6610f2', counter));
          } else {
             continue;
          }
@@ -347,9 +369,9 @@ function calcSimulation(sourceData, start, end, global) {
 
       if (lastAction === 'buy') {
          if (calcLastAction === 'sold') {
-            lastSavings = calcLastPrice * lastPieces;
+            lastSavings = currentPrice * lastPieces;
             lastPieces = 0;
-            annotations.push(getAnnotation(calcLabel, 'Sold', '#4dbd74', counter));
+            annotations.push(getAnnotation(currentLabel, 'Sold', '#4dbd74', counter));
          } else {
             continue;
          }
@@ -365,12 +387,16 @@ function calcSimulation(sourceData, start, end, global) {
          days,
          tolerance,
          transactions,
-         price: calcLastPrice,
+         price: currentPrice,
          pieces: lastPieces,
          date: calcLastActionDate,
          counter,
       });
       counter++;
+      console.log('lastSavings :>> ', lastSavings);
+      console.log('lastPieces :>> ', lastPieces);
+      console.log('lastAction :>> ', lastAction);
+      console.log('lastActionDate :>> ', lastActionDate);
    }
 
    return { annotations, transactionList, chartData };

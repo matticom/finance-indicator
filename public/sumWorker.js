@@ -10,7 +10,7 @@ const MIN_TOLERANCE = 3;
 const MAX_TOLERANCE = 20;
 const MIN_DAYS = 10;
 const MAX_DAYS = 150;
-
+const MAX_TRANSACTIONS_PER_YEAR = 12;
 const INITIAL_MONEY = 1000;
 
 function calcSuperPosition(start, rawData) {
@@ -78,6 +78,11 @@ function evaluateParams(rawData, start, end) {
    // const sourceData = rawData.slice(Math.round((rawData.length / 3) * 2));
    // const sourceData = rawData;
 
+   // Transaction max value
+   const timeRangeInDays = start !== undefined && end !== undefined ? (end - start) / 3600 / 24 : rawData.length;
+   const maxTransactionsPerDay = MAX_TRANSACTIONS_PER_YEAR / 365; // 12 transaction/year
+   const maxTransactions = timeRangeInDays * maxTransactionsPerDay;
+
    const data = sourceData.map((dayData) => {
       const price = dayData.value;
       return price;
@@ -105,15 +110,14 @@ function evaluateParams(rawData, start, end) {
             minusLimit: lineXMinus,
          } = getXDayLineData(daysParam, data, toleranceParam);
          const { savings, transactions } = calcProfit(daysParam, data, lineXMinus, lineXPlus);
-         tolerancesRes.push(savings);
+         // transaction filter application
+         tolerancesRes.push(transactions > maxTransactions ? INITIAL_MONEY : savings);
          top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions });
       });
       result.push(tolerancesRes);
    });
    // console.log('top10 :>> ', top10);
-   const timeRangeInDays = start !== undefined && end !== undefined ? (end - start) / 3600 / 24 : rawData.length;
-   const maxTransactionsPerDay = 12 / 365; // 12 transaction/year
-   const maxTransactions = timeRangeInDays * maxTransactionsPerDay;
+
    let filteredTop10 = top10.filter((entry) => entry.transactions < maxTransactions);
    // console.log('filteredTop10 :>> ', filteredTop10);
    filteredTop10.sort((a, b) => b.savings - a.savings);
@@ -160,10 +164,10 @@ function calcProfit(days, lineData, lineDataMinus, lineDataPlus) {
 
    for (let index = days; index < lineData.length; index++) {
       const price = lineData[index];
-      const priceMinus5 = lineDataMinus[index];
-      const pricePlus5 = lineDataPlus[index];
-      const currentSoldDiff = price - priceMinus5;
-      const currentBuyDiff = price - pricePlus5;
+      const priceMinusTolerance = lineDataMinus[index];
+      const pricePlusTolerance = lineDataPlus[index];
+      const currentSoldDiff = price - priceMinusTolerance;
+      const currentBuyDiff = price - pricePlusTolerance;
 
       if (lastAction === 'sold' && lastBuyDiff <= 0 && currentBuyDiff > 0) {
          lastSoldDiff = currentSoldDiff;

@@ -2,8 +2,8 @@ import React from 'react';
 
 import './App.css';
 // import DekaEtfChart from './DekaEtfChart';
-import CryptoChart from './CryptoChartSum';
-// import CryptoParamEvaluation from './CryptoParamEvaluation';
+// import CryptoChart from './CryptoChartSum';
+import CryptoChart from './Simulation';
 
 function App() {
    return (

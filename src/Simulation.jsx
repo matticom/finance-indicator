@@ -5,7 +5,6 @@ import moment from 'moment';
 // const rawData = require('./data/historyLink.json');
 // const rawData = require('./data/historyBTC.json');
 const rawData = require('./data/LongHistoryBTC.json');
-import Plot from 'react-plotly.js';
 
 import BootstrapTable from 'react-bootstrap-table-next';
 import 'react-bootstrap-table-next/dist/react-bootstrap-table2.min.css';
@@ -26,20 +25,47 @@ const columns = [
       hidden: 'true',
    },
    {
+      text: 'Action',
+      dataField: 'action',
+   },
+   {
+      text: 'Date',
+      dataField: 'date',
+      formatter: (value) => {
+         console.log('value :>> ', value);
+         return moment.unix(value).format('D. MMM YYYY');
+      },
+   },
+   {
       text: 'Balance',
       dataField: 'savings',
       formatter: (value) => numeral(value).format('0,0.000a'),
    },
    {
-      text: 'X days line',
+      text: 'Pieces',
+      dataField: 'pieces',
+      formatter: (value) => numeral(value).format('0,0.0000a'),
+   },
+   {
+      text: 'Price',
+      dataField: 'price',
+      formatter: (value) => numeral(value).format('0,0.000a'),
+   },
+   {
+      text: 'Max Balance (step)',
+      dataField: 'maxSavings',
+      formatter: (value) => numeral(value).format('0,0.000a'),
+   },
+   {
+      text: 'X days line (step)',
       dataField: 'days',
    },
    {
-      text: 'Tolerance',
+      text: 'Tolerance (step)',
       dataField: 'tolerance',
    },
    {
-      text: 'Transactions',
+      text: 'Transactions (step)',
       dataField: 'transactions',
    },
 ];
@@ -134,20 +160,6 @@ function getOptionsWithAnnotations(options, annotations) {
    return options;
 }
 
-const colors = [
-   '#20a8d8',
-   '#f8cb00',
-   '#e83e8c',
-   '#20c997',
-   '#6f42c1',
-   '#ffc107',
-   '#63c2de',
-   '#4dbd74',
-   '#6610f2',
-   '#17a2b8',
-   '#f86c6b',
-];
-
 function getNewDataSet(data, labelName, color = 'black') {
    return {
       label: labelName,
@@ -178,25 +190,27 @@ function TestChart() {
    const globalData = getResult(rawData, globalStart, globalEnd);
    console.timeEnd('first');
 
-   const [evaStartStr] = useState('2020-05-22');
-   const [evaEndStr, setEvaEndStr] = useState('2021-04-15');
+   const [simuStartStr] = useState('2020-05-22');
+   const [simuEndStr, setSimuEndStr] = useState('2021-01-17');
 
-   // const evaStart = moment('2016-09-05').unix();
-   const evaStart = moment(evaStartStr).unix();
-   const evaEnd = moment(evaEndStr).unix();
-   // const evaData = getResult(rawData, evaStart, evaEnd, globalData);
+   // const simuStart = moment('2016-09-05').unix();
+   const simuStart = moment(simuStartStr).unix();
+   const simuEnd = moment(simuEndStr).unix();
+   // const simuData = getResult(rawData, simuStart, simuEnd, globalData);
 
-   const [evaOptions, setEvaOptions] = useState(getOptions(lineRef, setEvaEndStr));
-   const [evaData, setEvaData] = useState(getResult(rawData, evaStart, evaEnd, globalData));
+   const [simuOptions, setSimuOptions] = useState(getOptions(lineRef, setSimuEndStr));
+   const [simuData, setSimuData] = useState(calcSimulation(rawData, simuStart, simuEnd, globalData));
 
    useEffect(() => {
-      setEvaOptions(getOptions(lineRef, setEvaEndStr));
-      setEvaData(getResult(rawData, evaStart, evaEnd, globalData));
-   }, [evaEndStr, evaStart, evaEnd]);
+      setSimuOptions(getOptions(lineRef, setSimuEndStr));
+      setSimuData(calcSimulation(rawData, simuStart, simuEnd, globalData));
+   }, [simuEndStr, simuStart, simuEnd]);
+
+   const transactionCount = simuData.transactionList.length;
 
    return (
       <>
-         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Optimum data evaluation (entire plot data ${moment
+         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Optimum data simulation (entire plot data ${moment
             .unix(globalStart)
             .format('DD.MM.YYYY')} - ${moment.unix(globalEnd).format('DD.MM.YYYY')}):`}</div>
          <div
@@ -223,9 +237,9 @@ function TestChart() {
                options={getOptionsWithAnnotations(getOptions(), globalData.annotations)}
             />
          </div>
-         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Evaluated data (${moment
-            .unix(evaStart)
-            .format('DD.MM.YYYY')} - ${moment.unix(evaEnd).format('DD.MM.YYYY')}):`}</div>
+         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Simulated data (${moment
+            .unix(simuStart)
+            .format('DD.MM.YYYY')} - ${moment.unix(simuEnd).format('DD.MM.YYYY')}):`}</div>
          <div
             style={{
                display: 'flex',
@@ -235,50 +249,131 @@ function TestChart() {
                fontSize: '16px',
             }}
          >
-            {evaData.topX.length !== 0 && (
+            {transactionCount !== 0 && (
                <>
-                  <div>{`Balance: ${numeral(evaData.topX[0].savings).format('0,0.000a')}`}</div>
-                  <div>{`Transactions: ${evaData.topX[0].transactions}`}</div>
-                  <div>{`Days line: ${evaData.topX[0].days}`}</div>
-                  <div>{`Tolerance: ${evaData.topX[0].tolerance}`}</div>
+                  <div>{`Balance: ${numeral(simuData.transactionList[transactionCount - 1].savings).format(
+                     '0,0.000a',
+                  )}`}</div>
+                  <div>{`Transactions: ${transactionCount}`}</div>
+                  {/* <div>{`Days line: ${simuData.topX[0].days}`}</div>
+                  <div>{`Tolerance: ${simuData.topX[0].tolerance}`}</div> */}
                </>
             )}
          </div>
          <div style={{ position: 'relative', height: '600px', width: '100%' }}>
             <Line
                ref={lineRef}
-               data={evaData.chartData}
-               options={getOptionsWithAnnotations(evaOptions, evaData.annotations)}
+               data={simuData.chartData}
+               options={getOptionsWithAnnotations(simuOptions, simuData.annotations)}
             />
          </div>
          <div style={{ position: 'relative', width: '100%' }}>
-            <div style={{ fontSize: '26px', margin: '20px 0px' }}>Evaluation</div>
-            <div style={{ display: 'flex' }}>
-               <div style={{ width: '50%' }}>
-                  {evaStart !== undefined && (
-                     <div style={{ fontSize: '16px', margin: '20px 0px' }}>
-                        <div>{`Evalution start: ${moment.unix(evaStart).format('DD.MM.YYYY')}`}</div>
-                        <div>{`Evalution end: ${moment.unix(evaEnd).format('DD.MM.YYYY')}`}</div>
-                     </div>
-                  )}
-                  <Plot data={[{ z: evaData.chart3dData, type: 'surface' }]} />
-               </div>
-               <div style={{ width: '50%', fontSize: '14px', display: 'flex', justifyContent: 'center' }}>
-                  <BootstrapTable
-                     keyField='hiddenKey'
-                     data={addHiddenKeyColumn(evaData.topX)}
-                     columns={columns}
-                     bodyClasses='table-wrap-word'
-                     classes='fixed-table'
-                     bootstrap4
-                     striped
-                     hover
-                  />
-               </div>
+            <div style={{ fontSize: '26px', margin: '20px 0px' }}>Simulation</div>
+            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'center' }}>
+               <BootstrapTable
+                  keyField='hiddenKey'
+                  data={addHiddenKeyColumn(simuData.transactionList)}
+                  columns={columns}
+                  bodyClasses='table-wrap-word'
+                  classes='fixed-table'
+                  bootstrap4
+                  striped
+                  hover
+               />
             </div>
          </div>
       </>
    );
+}
+
+function calcSimulation(sourceData, start, end, global) {
+   const startOfCalc = 30;
+   const rawData = sourceData.filter((data) => data.date >= start && data.date <= end);
+
+   // const data = rawData.map((dayData) => dayData.value);
+   // const labels = rawData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
+   const chartData = { labels: global.plotLabels, datasets: [getNewDataSet(global.plotData, 'Currency')] };
+
+   const startDate = rawData[startOfCalc].date;
+
+   let lastSavings = INITIAL_MONEY;
+   let lastPieces = 0;
+   let lastAction = '';
+   let lastActionDate = startDate;
+   const transactionList = [];
+   const annotations = [];
+
+   let counter = 0;
+
+   for (let index = startOfCalc; index < rawData.length; index++) {
+      const endOfCalc = rawData[index].date;
+      const dataToBeCalc = rawData.filter((data) => data.date <= endOfCalc);
+      const { topX } = evaluateParams([...dataToBeCalc]);
+      console.log('\n\n>>>> new cycle :>> ', counter);
+      console.log('lastSavings :>> ', lastSavings);
+      console.log('lastPieces :>> ', lastPieces);
+      console.log('lastAction :>> ', lastAction);
+      console.log('lastActionDate :>> ', lastActionDate);
+      console.log('start Of cycle :>> ', moment.unix(dataToBeCalc[0].date).format('D. MMM YYYY'));
+      console.log('end Of cycle :>> ', moment.unix(endOfCalc).format('D. MMM YYYY'));
+      console.log('result :>> ', topX.length === 0 ? 'nada' : topX[0]);
+
+      if (
+         topX.length === 0 ||
+         (topX.length > 0 && topX[0].savings <= INITIAL_MONEY && topX[0].currentState.lastAction !== 'buy')
+      ) {
+         continue;
+      }
+
+      const { savings, days, tolerance, transactions, currentState } = topX[0];
+      const calcLastActionDate = moment(currentState.date, 'D. MMM YYYY').unix();
+      const calcLastAction = currentState.lastAction;
+      const calcLastPrice = currentState.price;
+      const calcLabel = currentState.date;
+
+      if (calcLastActionDate <= startDate || calcLastActionDate <= lastActionDate) {
+         continue;
+      }
+
+      if (lastAction === 'sold' || lastAction === '') {
+         if (calcLastAction === 'buy') {
+            lastPieces = lastSavings / calcLastPrice;
+            lastSavings = 0;
+            annotations.push(getAnnotation(calcLabel, 'Buy', '#6610f2', counter));
+         } else {
+            continue;
+         }
+      }
+
+      if (lastAction === 'buy') {
+         if (calcLastAction === 'sold') {
+            lastSavings = calcLastPrice * lastPieces;
+            lastPieces = 0;
+            annotations.push(getAnnotation(calcLabel, 'Sold', '#4dbd74', counter));
+         } else {
+            continue;
+         }
+      }
+
+      lastAction = calcLastAction;
+      lastActionDate = calcLastActionDate;
+      console.log('calcLastActionDate :>> ', calcLastActionDate);
+      transactionList.push({
+         action: lastAction,
+         savings: lastSavings,
+         maxSavings: savings,
+         days,
+         tolerance,
+         transactions,
+         price: calcLastPrice,
+         pieces: lastPieces,
+         date: calcLastActionDate,
+         counter,
+      });
+      counter++;
+   }
+
+   return { annotations, transactionList, chartData };
 }
 
 function getResult(rawData, start, end, global) {

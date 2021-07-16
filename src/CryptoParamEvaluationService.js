@@ -35,6 +35,8 @@ const MIN_TOLERANCE = 3;
 const MAX_TOLERANCE = 30;
 const MIN_DAYS = 10;
 const MAX_DAYS = 200;
+const MAX_TRANSACTIONS_PER_YEAR = 12;
+const INITIAL_MONEY = 1000;
 
 export function evaluateParams(rawData, start, end) {
    let sourceData = rawData;
@@ -49,6 +51,11 @@ export function evaluateParams(rawData, start, end) {
 
    // const sourceData = rawData.slice();
    // const sourceData = rawData;
+
+   // Transaction max value
+   const timeRangeInDays = start !== undefined && end !== undefined ? (end - start) / 3600 / 24 : rawData.length;
+   const maxTransactionsPerDay = MAX_TRANSACTIONS_PER_YEAR / 365; // 12 transaction/year
+   const maxTransactions = timeRangeInDays * maxTransactionsPerDay;
 
    const labels = getLabels(sourceData);
    const data = sourceData.map((dayData) => {
@@ -77,16 +84,16 @@ export function evaluateParams(rawData, start, end) {
             plusLimit: lineXPlus,
             minusLimit: lineXMinus,
          } = getXDayLineData(daysParam, data, toleranceParam);
-         const { savings, date, transactions } = calcProfit(daysParam, labels, data, lineXMinus, lineXPlus);
-         tolerancesRes.push(savings);
-         top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions });
+         const { lastSold, currentState } = calcProfit(daysParam, labels, data, lineXMinus, lineXPlus);
+         const { savings, date, transactions } = lastSold;
+         // transaction filter application
+         tolerancesRes.push(transactions > maxTransactions ? INITIAL_MONEY : savings);
+         top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions, currentState });
       });
       result.push(tolerancesRes);
    });
    // console.log('top10 :>> ', top10);
-   const timeRangeInDays = start !== undefined && end !== undefined ? (end - start) / 3600 / 24 : rawData.length;
-   const maxTransactionsPerDay = 12 / 365; // 12 transaction/year
-   const maxTransactions = timeRangeInDays * maxTransactionsPerDay;
+
    let filteredTop10 = top10.filter((entry) => entry.transactions < maxTransactions);
    // console.log('filteredTop10 :>> ', filteredTop10);
    filteredTop10.sort((a, b) => b.savings - a.savings);
@@ -120,7 +127,6 @@ function getXDayLineData(days, data, tolerance) {
 }
 
 function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
-   const INITIAL_MONEY = 1000;
    let pieces = 0;
    let currentMoney = INITIAL_MONEY;
    let transactionCount = 0;
@@ -131,14 +137,15 @@ function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
    let lastAction = 'sold';
 
    let lastSold = { savings: INITIAL_MONEY, date: labels[0] };
+   let currentState = { lastAction: '', date: '' };
 
    for (let index = days; index < lineData.length; index++) {
       const price = lineData[index];
-      const priceMinus5 = lineDataMinus[index];
-      const pricePlus5 = lineDataPlus[index];
+      const priceMinusTolerance = lineDataMinus[index];
+      const pricePlusTolerance = lineDataPlus[index];
       const label = labels[index];
-      const currentSoldDiff = price - priceMinus5;
-      const currentBuyDiff = price - pricePlus5;
+      const currentSoldDiff = price - priceMinusTolerance;
+      const currentBuyDiff = price - pricePlusTolerance;
 
       if (lastAction === 'sold' && lastBuyDiff <= 0 && currentBuyDiff > 0) {
          lastSoldDiff = currentSoldDiff;
@@ -164,7 +171,8 @@ function calcProfit(days, labels, lineData, lineDataMinus, lineDataPlus) {
          transactionCount++;
          lastSold = { savings: currentMoney, date: label, transactions: transactionCount };
       }
+      currentState = { lastAction, date: label, price };
       counter++;
    }
-   return lastSold;
+   return { lastSold, currentState };
 }

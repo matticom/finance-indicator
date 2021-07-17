@@ -49,6 +49,11 @@ const columns = [
       formatter: (value) => numeral(value).format('0,0.000a'),
    },
    {
+      text: 'Date (step)',
+      dataField: 'calcDate',
+      formatter: (value) => moment.unix(value).format('D. MMM YYYY'),
+   },
+   {
       text: 'Max Balance (step)',
       dataField: 'maxSavings',
       formatter: (value) => numeral(value).format('0,0.000a'),
@@ -176,35 +181,91 @@ const INITIAL_MONEY = 1000;
 function TestChart() {
    const lineRef = useRef(null);
 
+   const [done, setDone] = useState(true);
+   const workerRef = useRef(null);
+
    const [inputStart, setInputStart] = useState('2020-05-22');
    const [inputEnd, setInputEnd] = useState('2020-07-17');
 
    const [chosenStart, setChosenStart] = useState('2020-05-22');
    const [chosenEnd, setChosenEnd] = useState('2020-07-17');
 
+   const [percentageDone, setPercentageDone] = useState(0);
+
+   const [globalData, setGlobalData] = useState();
+
    // const globalStart = moment('2016-09-05').unix();
-   const globalStart = moment(chosenStart).unix();
-   const globalEnd = moment(chosenEnd).unix();
+   // const globalStart = moment(chosenStart).unix();
+   // const globalEnd = moment(chosenEnd).unix();
 
    // const globalStart = moment('2013-10-01').unix();
    // const globalEnd = moment('2014-01-08').unix();
 
-   console.time('first');
-   const globalData = useMemo(() => getResult(rawData, globalStart, globalEnd), [globalStart, globalEnd]);
-   console.timeEnd('first');
+   const [annotations, setAnnotations] = useState([]);
+   const [transactionList, setTransactionList] = useState([]);
+   const [chartData, setChartData] = useState();
 
    // const simuStart = moment('2016-09-05').unix();
-   const simuStart = moment(chosenStart).unix();
+   // const simuStart = moment(chosenStart).unix();
    // const simuEnd = moment('2021-01-17').unix();
-   const simuEnd = moment(chosenEnd).unix();
+   // const simuEnd = moment(chosenEnd).unix();
    // const simuData = getResult(rawData, simuStart, simuEnd, globalData);
 
-   const simuData = useMemo(
-      () => calcSimulation(rawData, simuStart, simuEnd, globalData),
-      [simuStart, simuEnd, globalData],
-   );
+   const runWorker = (rawData, start, end, global) => {
+      const worker = new window.Worker('./simuWorker.js');
+      setDone(false);
+      setChosenStart(moment.unix(start));
+      setChosenEnd(moment.unix(end));
 
-   const transactionCount = simuData.transactionList.length;
+      worker.postMessage({ data: rawData, start, end, global });
+      //
+      worker.onerror = (err) => err;
+      worker.onmessage = (e) => {
+         const event = e.data;
+         if (event.type === 'cycle update basic') {
+            const { counter, currentLoop, maxLoops, startLabel, currentLabel, result } = event.data;
+            setPercentageDone((100 * currentLoop) / maxLoops);
+            console.log('\n\n>>>> new cycle :>> ', counter);
+            console.log('start Of cycle :>> ', moment.unix(startLabel).format('D. MMM YYYY'));
+            console.log('end Of cycle :>> ', moment.unix(currentLabel).format('D. MMM YYYY'));
+            console.log('result :>> ', result);
+         }
+         if (event.type === 'cycle update action') {
+            const { currentPrice, calcLastActionDate, lastSavings, lastPieces, lastAction, lastActionDate } =
+               event.data;
+            console.log('current Price :>> ', currentPrice);
+            console.log('lastSavings :>> ', lastSavings);
+            // console.log('calcLastActionDate :>> ', calcLastActionDate);
+            console.log('lastPieces :>> ', lastPieces);
+            console.log('lastAction :>> ', lastAction);
+            console.log('lastActionDate :>> ', moment.unix(lastActionDate).format('D. MMM YYYY'));
+         }
+         if (event.type === 'completed') {
+            const { annotations, transactionList, chartData } = event.data;
+            console.log('transactionList :>> ', transactionList);
+            setChartData(chartData);
+            setTransactionList(transactionList);
+            setAnnotations(
+               annotations.map((anno) => {
+                  const { currentLabel, action, color, counter } = anno;
+                  return getAnnotation(moment.unix(currentLabel).format('D. MMM YYYY'), action, color, counter);
+               }),
+            );
+            setGlobalData(global);
+            setDone(true);
+
+            worker.terminate();
+         }
+         workerRef.current = worker;
+      };
+   };
+
+   const stopWorker = () => {
+      setDone(true);
+      workerRef.current.terminate();
+   };
+
+   const transactionCount = transactionList.length;
 
    return (
       <>
@@ -222,185 +283,206 @@ function TestChart() {
                   </div>
                   <button
                      onClick={() => {
-                        setChosenStart(inputStart);
-                        setChosenEnd(inputEnd);
+                        const start = moment(inputStart).unix();
+                        const end = moment(inputEnd).unix();
+                        const globalData = getResult(rawData, start, end);
+                        runWorker(rawData, start, end, globalData);
                      }}
+                     disabled={!done}
                      style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
                   >
                      {'Go'}
                   </button>
+                  <button
+                     onClick={() => stopWorker()}
+                     disabled={done}
+                     style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
+                  >
+                     {'Stop'}
+                  </button>
                </div>
             </div>
-         </div>
-         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Optimum data simulation (entire plot data ${moment
-            .unix(globalStart)
-            .format('DD.MM.YYYY')} - ${moment.unix(globalEnd).format('DD.MM.YYYY')}):`}</div>
-         <div
-            style={{
-               display: 'flex',
-               justifyContent: 'space-around',
-               width: '50%',
-               margin: '20px 0px',
-               fontSize: '16px',
-            }}
-         >
-            {globalData.topX.length !== 0 && (
-               <>
-                  <div>{`Balance: ${numeral(globalData.topX[0].savings).format('0,0.000a')}`}</div>
-                  <div>{`Transactions: ${globalData.topX[0].transactions}`}</div>
-                  <div>{`Days line: ${globalData.topX[0].days}`}</div>
-                  <div>{`Tolerance: ${globalData.topX[0].tolerance}`}</div>
-               </>
+            {!done && (
+               <div style={{ textAlign: 'center', fontSize: '20px' }}>{`Processed ${numeral(percentageDone).format(
+                  '0.0a',
+               )}%`}</div>
             )}
          </div>
-         <div style={{ position: 'relative', height: '600px', width: '100%' }}>
-            <Line
-               data={globalData.chartData}
-               options={getOptionsWithAnnotations(getOptions(), globalData.annotations)}
-            />
-         </div>
-         <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Simulated data (${moment
-            .unix(simuStart)
-            .format('DD.MM.YYYY')} - ${moment.unix(simuEnd).format('DD.MM.YYYY')}):`}</div>
-         <div
-            style={{
-               display: 'flex',
-               justifyContent: 'space-around',
-               width: '50%',
-               margin: '20px 0px',
-               fontSize: '16px',
-            }}
-         >
-            {transactionCount !== 0 && (
-               <>
-                  <div>{`Balance: ${numeral(simuData.transactionList[transactionCount - 1].savings).format(
-                     '0,0.000a',
-                  )}`}</div>
-                  <div>{`Transactions: ${transactionCount}`}</div>
-                  {/* <div>{`Days line: ${simuData.topX[0].days}`}</div>
+         {globalData && (
+            <>
+               <div
+                  style={{ fontSize: '26px', margin: '20px 0px' }}
+               >{`Optimum data simulation (entire plot data ${chosenStart.format('DD.MM.YYYY')} - ${chosenEnd.format(
+                  'DD.MM.YYYY',
+               )}):`}</div>
+               <div
+                  style={{
+                     display: 'flex',
+                     justifyContent: 'space-around',
+                     width: '50%',
+                     margin: '20px 0px',
+                     fontSize: '16px',
+                  }}
+               >
+                  {globalData.topX.length !== 0 && (
+                     <>
+                        <div>{`Balance: ${numeral(globalData.topX[0].savings).format('0,0.000a')}`}</div>
+                        <div>{`Transactions: ${globalData.topX[0].transactions}`}</div>
+                        <div>{`Days line: ${globalData.topX[0].days}`}</div>
+                        <div>{`Tolerance: ${globalData.topX[0].tolerance}`}</div>
+                     </>
+                  )}
+               </div>
+               <div style={{ position: 'relative', height: '600px', width: '100%' }}>
+                  <Line
+                     data={globalData.chartData}
+                     options={getOptionsWithAnnotations(getOptions(), globalData.annotations)}
+                  />
+               </div>
+            </>
+         )}
+         {chartData && (
+            <>
+               <div style={{ fontSize: '26px', margin: '20px 0px' }}>{`Simulated data (${chosenStart.format(
+                  'DD.MM.YYYY',
+               )} - ${chosenEnd.format('DD.MM.YYYY')}):`}</div>
+               <div
+                  style={{
+                     display: 'flex',
+                     justifyContent: 'space-around',
+                     width: '50%',
+                     margin: '20px 0px',
+                     fontSize: '16px',
+                  }}
+               >
+                  {transactionCount !== 0 && (
+                     <>
+                        <div>{`Balance: ${numeral(transactionList[transactionCount - 1].savings).format(
+                           '0,0.000a',
+                        )}`}</div>
+                        <div>{`Transactions: ${transactionCount}`}</div>
+                        {/* <div>{`Days line: ${simuData.topX[0].days}`}</div>
                   <div>{`Tolerance: ${simuData.topX[0].tolerance}`}</div> */}
-               </>
-            )}
-         </div>
-         <div style={{ position: 'relative', height: '600px', width: '100%' }}>
-            <Line
-               ref={lineRef}
-               data={simuData.chartData}
-               options={getOptionsWithAnnotations(getOptions(), simuData.annotations)}
-            />
-         </div>
-         <div style={{ position: 'relative', width: '100%' }}>
-            <div style={{ fontSize: '26px', margin: '20px 0px' }}>Simulation</div>
-            <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'center', margin: '20px 0px' }}>
-               <BootstrapTable
-                  keyField='hiddenKey'
-                  data={addHiddenKeyColumn(simuData.transactionList)}
-                  columns={columns}
-                  bodyClasses='table-wrap-word'
-                  classes='fixed-table'
-                  bootstrap4
-                  striped
-                  hover
-               />
-            </div>
-         </div>
+                     </>
+                  )}
+               </div>
+               <div style={{ position: 'relative', height: '600px', width: '100%' }}>
+                  <Line ref={lineRef} data={chartData} options={getOptionsWithAnnotations(getOptions(), annotations)} />
+               </div>
+               <div style={{ position: 'relative', width: '100%' }}>
+                  <div style={{ fontSize: '26px', margin: '20px 0px' }}>Simulation</div>
+                  <div style={{ fontSize: '13px', display: 'flex', justifyContent: 'center', margin: '20px 0px' }}>
+                     <BootstrapTable
+                        keyField='hiddenKey'
+                        data={addHiddenKeyColumn(transactionList)}
+                        columns={columns}
+                        bodyClasses='table-wrap-word'
+                        classes='fixed-table'
+                        bootstrap4
+                        striped
+                        hover
+                     />
+                  </div>
+               </div>
+            </>
+         )}
       </>
    );
 }
 
-function calcSimulation(sourceData, start, end, global) {
-   const startOfCalc = 30;
-   const rawData = sourceData.filter((data) => data.date >= start && data.date <= end);
+// function calcSimulation(sourceData, start, end, global) {
+//    const startOfCalc = 30;
+//    const rawData = sourceData.filter((data) => data.date >= start && data.date <= end);
 
-   // const data = rawData.map((dayData) => dayData.value);
-   // const labels = rawData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
-   const chartData = { labels: global.plotLabels, datasets: [getNewDataSet(global.plotData, 'Currency')] };
+//    // const data = rawData.map((dayData) => dayData.value);
+//    // const labels = rawData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
+//    const chartData = { labels: global.plotLabels, datasets: [getNewDataSet(global.plotData, 'Currency')] };
 
-   const startDate = rawData[startOfCalc].date;
+//    const startDate = rawData[startOfCalc].date;
 
-   let lastSavings = INITIAL_MONEY;
-   let lastPieces = 0;
-   let lastAction = '';
-   let lastActionDate = startDate;
-   const transactionList = [];
-   const annotations = [];
+//    let lastSavings = INITIAL_MONEY;
+//    let lastPieces = 0;
+//    let lastAction = '';
+//    let lastActionDate = startDate;
+//    const transactionList = [];
+//    const annotations = [];
 
-   let counter = 0;
+//    let counter = 0;
 
-   for (let index = startOfCalc; index < rawData.length; index++) {
-      const endOfCalc = rawData[index].date;
-      const dataToBeCalc = rawData.filter((data) => data.date <= endOfCalc);
-      const { topX } = evaluateParams([...dataToBeCalc]);
-      const startLabel = moment.unix(dataToBeCalc[0].date).format('D. MMM YYYY');
-      const currentLabel = moment.unix(endOfCalc).format('D. MMM YYYY');
-      console.log('\n\n>>>> new cycle :>> ', counter);
-      console.log('start Of cycle :>> ', startLabel);
-      console.log('end Of cycle :>> ', currentLabel);
+//    for (let index = startOfCalc; index < rawData.length; index++) {
+//       const endOfCalc = rawData[index].date;
+//       const dataToBeCalc = rawData.filter((data) => data.date <= endOfCalc);
+//       const { topX } = evaluateParams([...dataToBeCalc]);
+//       const startLabel = moment.unix(dataToBeCalc[0].date).format('D. MMM YYYY');
+//       const currentLabel = moment.unix(endOfCalc).format('D. MMM YYYY');
+//       console.log('\n\n>>>> new cycle :>> ', counter);
+//       console.log('start Of cycle :>> ', startLabel);
+//       console.log('end Of cycle :>> ', currentLabel);
 
-      console.log('result :>> ', topX.length === 0 ? 'nada' : topX[0]);
+//       console.log('result :>> ', topX.length === 0 ? 'nada' : topX[0]);
 
-      if (
-         topX.length === 0 ||
-         (topX.length > 0 && topX[0].savings <= INITIAL_MONEY && topX[0].currentState.lastAction !== 'buy')
-      ) {
-         continue;
-      }
+//       if (
+//          topX.length === 0 ||
+//          (topX.length > 0 && topX[0].savings <= INITIAL_MONEY && topX[0].currentState.lastAction !== 'buy')
+//       ) {
+//          continue;
+//       }
 
-      const { savings, days, tolerance, transactions, currentState } = topX[0];
-      const calcLastActionDate = moment(currentState.lastActionDate, 'D. MMM YYYY').unix();
-      const calcLastAction = currentState.lastAction;
-      const currentPrice = currentState.price;
-      const calcLabel = currentState.lastActionDate;
-      console.log('current Price :>> ', currentPrice);
+//       const { savings, days, tolerance, transactions, currentState } = topX[0];
+//       const calcLastActionDate = moment(currentState.lastActionDate, 'D. MMM YYYY').unix();
+//       const calcLastAction = currentState.lastAction;
+//       const currentPrice = currentState.price;
+//       const calcLabel = currentState.lastActionDate;
+//       console.log('current Price :>> ', currentPrice);
 
-      if (calcLastActionDate <= startDate || calcLastActionDate <= lastActionDate) {
-         continue;
-      }
+//       if (calcLastActionDate <= startDate || calcLastActionDate <= lastActionDate) {
+//          continue;
+//       }
 
-      if (lastAction === 'sold' || lastAction === '') {
-         if (calcLastAction === 'buy') {
-            lastPieces = lastSavings / currentPrice;
-            lastSavings = 0;
-            annotations.push(getAnnotation(currentLabel, 'Buy', '#6610f2', counter));
-         } else {
-            continue;
-         }
-      }
+//       if (lastAction === 'sold' || lastAction === '') {
+//          if (calcLastAction === 'buy') {
+//             lastPieces = lastSavings / currentPrice;
+//             lastSavings = 0;
+//             annotations.push(getAnnotation(currentLabel, 'Buy', '#6610f2', counter));
+//          } else {
+//             continue;
+//          }
+//       }
 
-      if (lastAction === 'buy') {
-         if (calcLastAction === 'sold') {
-            lastSavings = currentPrice * lastPieces;
-            lastPieces = 0;
-            annotations.push(getAnnotation(currentLabel, 'Sold', '#4dbd74', counter));
-         } else {
-            continue;
-         }
-      }
+//       if (lastAction === 'buy') {
+//          if (calcLastAction === 'sold') {
+//             lastSavings = currentPrice * lastPieces;
+//             lastPieces = 0;
+//             annotations.push(getAnnotation(currentLabel, 'Sold', '#4dbd74', counter));
+//          } else {
+//             continue;
+//          }
+//       }
 
-      lastAction = calcLastAction;
-      lastActionDate = calcLastActionDate;
-      console.log('calcLastActionDate :>> ', calcLastActionDate);
-      transactionList.push({
-         action: lastAction,
-         savings: lastSavings,
-         maxSavings: savings,
-         days,
-         tolerance,
-         transactions,
-         price: currentPrice,
-         pieces: lastPieces,
-         date: calcLastActionDate,
-         counter,
-      });
-      counter++;
-      console.log('lastSavings :>> ', lastSavings);
-      console.log('lastPieces :>> ', lastPieces);
-      console.log('lastAction :>> ', lastAction);
-      console.log('lastActionDate :>> ', lastActionDate);
-   }
+//       lastAction = calcLastAction;
+//       lastActionDate = calcLastActionDate;
+//       console.log('calcLastActionDate :>> ', calcLastActionDate);
+//       transactionList.push({
+//          action: lastAction,
+//          savings: lastSavings,
+//          maxSavings: savings,
+//          days,
+//          tolerance,
+//          transactions,
+//          price: currentPrice,
+//          pieces: lastPieces,
+//          date: calcLastActionDate,
+//          counter,
+//       });
+//       counter++;
+//       console.log('lastSavings :>> ', lastSavings);
+//       console.log('lastPieces :>> ', lastPieces);
+//       console.log('lastAction :>> ', lastAction);
+//       console.log('lastActionDate :>> ', lastActionDate);
+//    }
 
-   return { annotations, transactionList, chartData };
-}
+//    return { annotations, transactionList, chartData };
+// }
 
 function getResult(rawData, start, end, global) {
    const { chart3dData, topX, data, labels } = evaluateParams([...rawData], start, end);

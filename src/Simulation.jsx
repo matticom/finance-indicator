@@ -141,7 +141,7 @@ const getOptions = (ref, setEndDate) => {
 function getAnnotation(value, label, color, counter) {
    return {
       drawTime: 'afterDatasetsDraw',
-      id: `hline-${counter}`,
+      id: `hline-${counter + Math.round(Math.random() * 1000)}`,
       type: 'line',
       // mode: 'horizontal',
       scaleID: 'x-axis-0',
@@ -174,6 +174,13 @@ function getNewDataSet(data, labelName, color = 'black') {
    };
 }
 
+const overviewData = rawData.map((dayData) => dayData.value);
+const overviewLabels = rawData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
+const overviewChartData = {
+   labels: overviewLabels,
+   datasets: [getNewDataSet(overviewData, 'Currency')],
+};
+
 const INITIAL_MONEY = 1000;
 
 // const start = 1500;
@@ -182,13 +189,20 @@ function TestChart() {
    const lineRef = useRef(null);
 
    const [done, setDone] = useState(true);
+   const [optimumParams, setOptimumParams] = useState(false);
+   const [simuCalcWindow, setSimuCalcWindow] = useState(false);
+
+   const [overviewTolerance, setOverviewTolerance] = useState(4);
+   const [overviewDays, setOverviewDays] = useState(16);
+   const [simuCalcWindowValue, setSimuCalcWindowValue] = useState(30);
+
    const workerRef = useRef(null);
 
    const [inputStart, setInputStart] = useState('2020-05-22');
-   const [inputEnd, setInputEnd] = useState('2020-07-17');
+   const [inputEnd, setInputEnd] = useState('2021-07-03');
 
    const [chosenStart, setChosenStart] = useState('2020-05-22');
-   const [chosenEnd, setChosenEnd] = useState('2020-07-17');
+   const [chosenEnd, setChosenEnd] = useState('2021-07-03');
 
    const [percentageDone, setPercentageDone] = useState(0);
 
@@ -217,7 +231,13 @@ function TestChart() {
       setChosenStart(moment.unix(start));
       setChosenEnd(moment.unix(end));
 
-      worker.postMessage({ data: rawData, start, end, global });
+      worker.postMessage({
+         data: rawData,
+         start,
+         end,
+         global,
+         simuCalcWindow: simuCalcWindow ? simuCalcWindowValue - 1 : undefined,
+      });
       //
       worker.onerror = (err) => err;
       worker.onmessage = (e) => {
@@ -271,6 +291,9 @@ function TestChart() {
       <>
          <div style={{ position: 'relative', width: '100%' }}>
             <div style={{ fontSize: '26px', margin: '20px 0px' }}>Set simulation dates</div>
+            <div style={{ position: 'relative', height: '300px', width: '100%' }}>
+               <Line data={overviewChartData} options={getOptions()} />
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-around', width: '100%', margin: '20px 0px' }}>
                <div style={{ display: 'flex', justifyContent: 'space-around', width: '75%' }}>
                   <div style={{ fontSize: '14px' }}>
@@ -308,6 +331,92 @@ function TestChart() {
                )}%`}</div>
             )}
          </div>
+         <div style={{ display: 'flex', justifyContent: 'space-around', width: '100%', margin: '20px 0px' }}>
+            <div style={{ fontSize: '16px' }}>
+               <input
+                  type='checkbox'
+                  id={'optimumParams'}
+                  onChange={(e) => {
+                     setOptimumParams(e.target.checked);
+                     if (!e.target.checked) {
+                        const start = moment(inputStart).unix();
+                        const end = moment(inputEnd).unix();
+                        const globalData = getResult(rawData, start, end);
+                        setGlobalData(globalData);
+                     }
+                  }}
+               />
+               <label htmlFor='optimumParams'>Set optimum params</label>
+            </div>
+            <div style={{ fontSize: '16px' }}>
+               <input type='checkbox' id={'optimumParams'} onChange={(e) => setSimuCalcWindow(e.target.checked)} />
+               <label htmlFor='optimumParams'>Set window</label>
+            </div>
+         </div>
+         {optimumParams && (
+            <>
+               <div
+                  style={{
+                     display: 'flex',
+                     justifyContent: 'space-around',
+                     alignItems: 'center',
+                     width: '100%',
+                     margin: '20px 0px',
+                  }}
+               >
+                  <div style={{ fontSize: '16px' }}>Set optimum params:</div>
+                  <div style={{ fontSize: '16px' }}>
+                     <div style={{ marginBottom: '3px' }}>Tolerance: </div>
+                     <input
+                        type='text'
+                        value={overviewTolerance}
+                        onChange={(e) => setOverviewTolerance(e.target.value)}
+                     />
+                  </div>
+                  <div style={{ fontSize: '16px' }}>
+                     <div style={{ marginBottom: '3px' }}>X days: </div>
+                     <input type='text' value={overviewDays} onChange={(e) => setOverviewDays(e.target.value)} />
+                  </div>
+                  <button
+                     onClick={() => {
+                        const start = moment(inputStart).unix();
+                        const end = moment(inputEnd).unix();
+                        const globalData = getResult(rawData, start, end, {
+                           tolerance: overviewTolerance,
+                           days: overviewDays,
+                        });
+                        setGlobalData(globalData);
+                        setChosenStart(moment.unix(start));
+                        setChosenEnd(moment.unix(end));
+                     }}
+                     disabled={!done}
+                     style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
+                  >
+                     {'Go'}
+                  </button>
+               </div>
+            </>
+         )}
+         {simuCalcWindow && (
+            <>
+               <div
+                  style={{
+                     display: 'flex',
+                     justifyContent: 'space-around',
+                     alignItems: 'center',
+                     width: '100%',
+                     margin: '20px 0px',
+                  }}
+               >
+                  <div style={{ fontSize: '16px' }}>Set look backward window for simulation calculation:</div>
+                  <input
+                     type='text'
+                     value={simuCalcWindowValue}
+                     onChange={(e) => setSimuCalcWindowValue(e.target.value)}
+                  />
+               </div>
+            </>
+         )}
          {globalData && (
             <>
                <div
@@ -357,9 +466,11 @@ function TestChart() {
                >
                   {transactionCount !== 0 && (
                      <>
-                        <div>{`Balance: ${numeral(transactionList[transactionCount - 1].savings).format(
-                           '0,0.000a',
-                        )}`}</div>
+                        <div>{`Balance: ${numeral(
+                           transactionList[transactionCount - 1].savings === 0
+                              ? transactionList[transactionCount - 2].savings
+                              : transactionList[transactionCount - 1].savings,
+                        ).format('0,0.000a')}`}</div>
                         <div>{`Transactions: ${transactionCount}`}</div>
                         {/* <div>{`Days line: ${simuData.topX[0].days}`}</div>
                   <div>{`Tolerance: ${simuData.topX[0].tolerance}`}</div> */}
@@ -390,108 +501,43 @@ function TestChart() {
    );
 }
 
-// function calcSimulation(sourceData, start, end, global) {
-//    const startOfCalc = 30;
-//    const rawData = sourceData.filter((data) => data.date >= start && data.date <= end);
+function getResult(rawData, start, end, withOptimumParams) {
+   if (withOptimumParams) {
+      const { tolerance, days } = withOptimumParams;
+      let sourceData = rawData;
+      if (start !== undefined) {
+         if (end !== undefined) {
+            sourceData = rawData.filter((data) => data.date >= start && data.date <= end);
+         } else {
+            end = rawData[rawData.length - 1].date;
+            sourceData = rawData.filter((data) => data.date >= start);
+         }
+      }
+      const data = sourceData.map((dayData) => dayData.value);
+      const labels = sourceData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
+      const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(days, data, tolerance);
+      const { annotations, lastSold } = setBuySellSignals(days, labels, data, lineXMinus, lineXPlus);
+      const { savings, transactions } = lastSold;
+      const chartData = {
+         labels,
+         datasets: [
+            getNewDataSet(data, 'Currency'),
+            getNewDataSet(lineXMinus, `- ${tolerance}%`, '#6610f2'),
+            getNewDataSet(lineXPlus, `+ ${tolerance}%`, '#f86c6b'),
+            getNewDataSet(lineX, `${days} days`, '#20c997'),
+         ],
+      };
 
-//    // const data = rawData.map((dayData) => dayData.value);
-//    // const labels = rawData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
-//    const chartData = { labels: global.plotLabels, datasets: [getNewDataSet(global.plotData, 'Currency')] };
+      return { chartData, annotations, topX: [{ savings, transactions, tolerance, days }] };
+   }
 
-//    const startDate = rawData[startOfCalc].date;
-
-//    let lastSavings = INITIAL_MONEY;
-//    let lastPieces = 0;
-//    let lastAction = '';
-//    let lastActionDate = startDate;
-//    const transactionList = [];
-//    const annotations = [];
-
-//    let counter = 0;
-
-//    for (let index = startOfCalc; index < rawData.length; index++) {
-//       const endOfCalc = rawData[index].date;
-//       const dataToBeCalc = rawData.filter((data) => data.date <= endOfCalc);
-//       const { topX } = evaluateParams([...dataToBeCalc]);
-//       const startLabel = moment.unix(dataToBeCalc[0].date).format('D. MMM YYYY');
-//       const currentLabel = moment.unix(endOfCalc).format('D. MMM YYYY');
-//       console.log('\n\n>>>> new cycle :>> ', counter);
-//       console.log('start Of cycle :>> ', startLabel);
-//       console.log('end Of cycle :>> ', currentLabel);
-
-//       console.log('result :>> ', topX.length === 0 ? 'nada' : topX[0]);
-
-//       if (
-//          topX.length === 0 ||
-//          (topX.length > 0 && topX[0].savings <= INITIAL_MONEY && topX[0].currentState.lastAction !== 'buy')
-//       ) {
-//          continue;
-//       }
-
-//       const { savings, days, tolerance, transactions, currentState } = topX[0];
-//       const calcLastActionDate = moment(currentState.lastActionDate, 'D. MMM YYYY').unix();
-//       const calcLastAction = currentState.lastAction;
-//       const currentPrice = currentState.price;
-//       const calcLabel = currentState.lastActionDate;
-//       console.log('current Price :>> ', currentPrice);
-
-//       if (calcLastActionDate <= startDate || calcLastActionDate <= lastActionDate) {
-//          continue;
-//       }
-
-//       if (lastAction === 'sold' || lastAction === '') {
-//          if (calcLastAction === 'buy') {
-//             lastPieces = lastSavings / currentPrice;
-//             lastSavings = 0;
-//             annotations.push(getAnnotation(currentLabel, 'Buy', '#6610f2', counter));
-//          } else {
-//             continue;
-//          }
-//       }
-
-//       if (lastAction === 'buy') {
-//          if (calcLastAction === 'sold') {
-//             lastSavings = currentPrice * lastPieces;
-//             lastPieces = 0;
-//             annotations.push(getAnnotation(currentLabel, 'Sold', '#4dbd74', counter));
-//          } else {
-//             continue;
-//          }
-//       }
-
-//       lastAction = calcLastAction;
-//       lastActionDate = calcLastActionDate;
-//       console.log('calcLastActionDate :>> ', calcLastActionDate);
-//       transactionList.push({
-//          action: lastAction,
-//          savings: lastSavings,
-//          maxSavings: savings,
-//          days,
-//          tolerance,
-//          transactions,
-//          price: currentPrice,
-//          pieces: lastPieces,
-//          date: calcLastActionDate,
-//          counter,
-//       });
-//       counter++;
-//       console.log('lastSavings :>> ', lastSavings);
-//       console.log('lastPieces :>> ', lastPieces);
-//       console.log('lastAction :>> ', lastAction);
-//       console.log('lastActionDate :>> ', lastActionDate);
-//    }
-
-//    return { annotations, transactionList, chartData };
-// }
-
-function getResult(rawData, start, end, global) {
    const { chart3dData, topX, data, labels } = evaluateParams([...rawData], start, end);
 
    if (topX.length === 0 || (topX.length > 0 && topX[0].savings <= INITIAL_MONEY)) {
       return {
          chartData: {
-            labels: global ? global.plotLabels : labels,
-            datasets: [getNewDataSet(global ? global.plotData : data, 'Currency')],
+            labels,
+            datasets: [getNewDataSet(data, 'Currency')],
          },
          chart3dData,
          annotations: [],
@@ -504,22 +550,18 @@ function getResult(rawData, start, end, global) {
    const { savings, days, tolerance, transactions } = topX[0];
 
    const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(days, data, tolerance);
-   const globalLines = global ? getXDayLineData(days, global.plotData, tolerance) : null;
+
    const { annotations, lastSold } = setBuySellSignals(days, labels, data, lineXMinus, lineXPlus);
    // console.log('annotations :>> ', annotations);
    // console.log('line200 :>> ', line200);
 
-   if (global) {
-      console.log('labels[labels.length - 1] :>> ', labels[labels.length - 1]);
-      annotations.push(getAnnotation(labels[labels.length - 1], 'End', '#ffc107', labels.length + 999));
-   }
    const chartData = {
-      labels: global ? global.plotLabels : labels,
+      labels,
       datasets: [
-         getNewDataSet(global ? global.plotData : data, 'Currency'),
-         getNewDataSet(global ? globalLines.minusLimit : lineXMinus, `- ${tolerance}%`, '#6610f2'),
-         getNewDataSet(global ? globalLines.plusLimit : lineXPlus, `+ ${tolerance}%`, '#f86c6b'),
-         getNewDataSet(global ? globalLines.xDayLine : lineX, `${days} days`, '#20c997'),
+         getNewDataSet(data, 'Currency'),
+         getNewDataSet(lineXMinus, `- ${tolerance}%`, '#6610f2'),
+         getNewDataSet(lineXPlus, `+ ${tolerance}%`, '#f86c6b'),
+         getNewDataSet(lineX, `${days} days`, '#20c997'),
       ],
    };
 

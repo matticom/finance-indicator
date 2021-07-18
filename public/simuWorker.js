@@ -1,14 +1,14 @@
 onmessage = function (event) {
-   const { data: sourceData, start, end, global } = event.data;
+   const { data: sourceData, start, end, global, simuCalcWindow } = event.data;
 
-   const startOfCalc = 30;
+   const beforeCalcStarted = 30;
    const rawData = sourceData.filter((data) => data.date >= start && data.date <= end);
 
    // const data = rawData.map((dayData) => dayData.value);
    // const labels = rawData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
    const chartData = { labels: global.plotLabels, datasets: [getNewDataSet(global.plotData, 'Currency')] };
 
-   const startDate = rawData[startOfCalc].date;
+   const startDate = rawData[beforeCalcStarted].date;
 
    let lastSavings = INITIAL_MONEY;
    let lastPieces = 0;
@@ -18,9 +18,14 @@ onmessage = function (event) {
    const annotations = [];
 
    let counter = 0;
-   for (let index = startOfCalc; index < rawData.length; index++) {
+   for (let index = beforeCalcStarted; index < rawData.length; index++) {
+      const secureWindow = simuCalcWindow ? (simuCalcWindow < index ? simuCalcWindow : index) : 0;
+      const startOfCalc = simuCalcWindow ? rawData[index - secureWindow].date : 0;
       const endOfCalc = rawData[index].date;
-      const dataToBeCalc = rawData.filter((data) => data.date <= endOfCalc);
+
+      const dataToBeCalc = simuCalcWindow
+         ? rawData.filter((data) => data.date >= startOfCalc && data.date <= endOfCalc)
+         : rawData.filter((data) => data.date <= endOfCalc);
       const { topX } = evaluateParams([...dataToBeCalc]);
       const startLabel = dataToBeCalc[0].date;
       const currentLabel = endOfCalc;
@@ -35,8 +40,8 @@ onmessage = function (event) {
          type: 'cycle update basic',
          data: {
             counter,
-            currentLoop: index - startOfCalc,
-            maxLoops: rawData.length - startOfCalc,
+            currentLoop: index - beforeCalcStarted,
+            maxLoops: rawData.length - beforeCalcStarted,
             startLabel,
             currentLabel,
             result,
@@ -129,7 +134,7 @@ onmessage = function (event) {
 const MIN_TOLERANCE = 3;
 const MAX_TOLERANCE = 20;
 const MIN_DAYS = 10;
-const MAX_DAYS = 150;
+const MAX_DAYS = 100;
 const MAX_TRANSACTIONS_PER_YEAR = 12;
 const INITIAL_MONEY = 1000;
 

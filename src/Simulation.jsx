@@ -12,7 +12,8 @@ import 'react-bootstrap-table-next/dist/react-bootstrap-table2.min.css';
 import 'chartjs-plugin-annotation';
 
 import numeral from 'numeral';
-import { evaluateParams } from './CryptoParamEvaluationService';
+import { removeListener, sendMsg, setListener } from './WSocketService';
+import { BEST_STATIC_PARAM, GIVEN_STATIC_PARAM, SIMULATION } from './constants';
 
 function addHiddenKeyColumn(rows) {
    return rows.map((row, idx) => ({ ...row, hiddenKey: idx }));
@@ -138,25 +139,6 @@ const getOptions = (ref, setEndDate) => {
    return options;
 };
 
-function getAnnotation(value, label, color, counter) {
-   return {
-      drawTime: 'afterDatasetsDraw',
-      id: `hline-${counter + Math.round(Math.random() * 1000)}`,
-      type: 'line',
-      // mode: 'horizontal',
-      scaleID: 'x-axis-0',
-      value,
-      borderColor: color,
-      borderWidth: 1,
-      label: {
-         backgroundColor: 'rgba(0,0,0, 0.9)',
-         content: label,
-         enabled: true,
-         yAdjust: 50,
-      },
-   };
-}
-
 function getOptionsWithAnnotations(options, annotations) {
    options.annotation = { annotations };
    return options;
@@ -181,8 +163,6 @@ const overviewChartData = {
    datasets: [getNewDataSet(overviewData, 'Currency')],
 };
 
-const INITIAL_MONEY = 1000;
-
 // const start = 1500;
 
 function TestChart() {
@@ -196,17 +176,72 @@ function TestChart() {
    const [overviewDays, setOverviewDays] = useState(16);
    const [simuCalcWindowValue, setSimuCalcWindowValue] = useState(30);
 
-   const workerRef = useRef(null);
-
    const [inputStart, setInputStart] = useState('2020-05-22');
-   const [inputEnd, setInputEnd] = useState('2021-07-03');
+   const [inputEnd, setInputEnd] = useState('2021-01-03');
 
    const [chosenStart, setChosenStart] = useState('2020-05-22');
-   const [chosenEnd, setChosenEnd] = useState('2021-07-03');
+   const [chosenEnd, setChosenEnd] = useState('2021-01-03');
 
    const [percentageDone, setPercentageDone] = useState(0);
 
    const [globalData, setGlobalData] = useState();
+
+   useEffect(() => {
+      setListener(SIMULATION, ({ type, data }) => {
+         console.log('new Msg :>> ', { type, data });
+         if (type === 'cycle update basic') {
+            const { counter, currentLoop, maxLoops, startLabel, currentLabel, result } = data;
+            setPercentageDone((100 * currentLoop) / maxLoops);
+            console.log('\n\n>>>> new cycle :>> ', counter);
+            console.log('start Of cycle :>> ', moment.unix(startLabel).format('D. MMM YYYY'));
+            console.log('end Of cycle :>> ', moment.unix(currentLabel).format('D. MMM YYYY'));
+            console.log('result :>> ', result);
+            return;
+         }
+         if (type === 'cycle update action') {
+            const { currentPrice, calcLastActionDate, lastSavings, lastPieces, lastAction, lastActionDate } = data;
+            console.log('current Price :>> ', currentPrice);
+            console.log('lastSavings :>> ', lastSavings);
+            // console.log('calcLastActionDate :>> ', calcLastActionDate);
+            console.log('lastPieces :>> ', lastPieces);
+            console.log('lastAction :>> ', lastAction);
+            console.log('lastActionDate :>> ', moment.unix(lastActionDate).format('D. MMM YYYY'));
+            return;
+         }
+         if (type === 'completed') {
+            const { annotations, transactionList, chartData } = data;
+            console.log('annotations :>> ', annotations);
+            console.log('transactionList :>> ', transactionList);
+            setChartData(chartData);
+            setTransactionList(transactionList);
+            setAnnotations(annotations);
+            setDone(true);
+            return;
+         }
+         if (type === 'stop') {
+            setDone(true);
+            return;
+         }
+      });
+
+      setListener(BEST_STATIC_PARAM, ({ response, start, end }) => {
+         setGlobalData(response);
+         setChosenStart(moment.unix(start));
+         setChosenEnd(moment.unix(end));
+      });
+
+      setListener(GIVEN_STATIC_PARAM, ({ response, start, end }) => {
+         setGlobalData(response);
+         setChosenStart(moment.unix(start));
+         setChosenEnd(moment.unix(end));
+      });
+
+      return () => {
+         removeListener(SIMULATION);
+         removeListener(BEST_STATIC_PARAM);
+         removeListener(GIVEN_STATIC_PARAM);
+      };
+   }, []);
 
    // const globalStart = moment('2016-09-05').unix();
    // const globalStart = moment(chosenStart).unix();
@@ -225,64 +260,17 @@ function TestChart() {
    // const simuEnd = moment(chosenEnd).unix();
    // const simuData = getResult(rawData, simuStart, simuEnd, globalData);
 
-   const runWorker = (rawData, start, end, global) => {
-      const worker = new window.Worker('./simuWorker.js');
+   const runWorker = (start, end) => {
+      // const worker = new window.Worker('./simuWorker.js');
       setDone(false);
       setChosenStart(moment.unix(start));
       setChosenEnd(moment.unix(end));
 
-      worker.postMessage({
-         data: rawData,
+      sendMsg(SIMULATION, {
          start,
          end,
-         global,
          simuCalcWindow: simuCalcWindow ? simuCalcWindowValue - 1 : undefined,
       });
-      //
-      worker.onerror = (err) => err;
-      worker.onmessage = (e) => {
-         const event = e.data;
-         if (event.type === 'cycle update basic') {
-            const { counter, currentLoop, maxLoops, startLabel, currentLabel, result } = event.data;
-            setPercentageDone((100 * currentLoop) / maxLoops);
-            console.log('\n\n>>>> new cycle :>> ', counter);
-            console.log('start Of cycle :>> ', moment.unix(startLabel).format('D. MMM YYYY'));
-            console.log('end Of cycle :>> ', moment.unix(currentLabel).format('D. MMM YYYY'));
-            console.log('result :>> ', result);
-         }
-         if (event.type === 'cycle update action') {
-            const { currentPrice, calcLastActionDate, lastSavings, lastPieces, lastAction, lastActionDate } =
-               event.data;
-            console.log('current Price :>> ', currentPrice);
-            console.log('lastSavings :>> ', lastSavings);
-            // console.log('calcLastActionDate :>> ', calcLastActionDate);
-            console.log('lastPieces :>> ', lastPieces);
-            console.log('lastAction :>> ', lastAction);
-            console.log('lastActionDate :>> ', moment.unix(lastActionDate).format('D. MMM YYYY'));
-         }
-         if (event.type === 'completed') {
-            const { annotations, transactionList, chartData } = event.data;
-            console.log('transactionList :>> ', transactionList);
-            setChartData(chartData);
-            setTransactionList(transactionList);
-            setAnnotations(
-               annotations.map((anno) => {
-                  const { currentLabel, action, color, counter } = anno;
-                  return getAnnotation(moment.unix(currentLabel).format('D. MMM YYYY'), action, color, counter);
-               }),
-            );
-            setGlobalData(global);
-            setDone(true);
-
-            worker.terminate();
-         }
-         workerRef.current = worker;
-      };
-   };
-
-   const stopWorker = () => {
-      setDone(true);
-      workerRef.current.terminate();
    };
 
    const transactionCount = transactionList.length;
@@ -308,8 +296,22 @@ function TestChart() {
                      onClick={() => {
                         const start = moment(inputStart).unix();
                         const end = moment(inputEnd).unix();
-                        const globalData = getResult(rawData, start, end);
-                        runWorker(rawData, start, end, globalData);
+                        runWorker(start, end);
+                        if (optimumParams) {
+                           sendMsg(GIVEN_STATIC_PARAM, {
+                              start,
+                              end,
+                              optimumParams: {
+                                 tolerance: overviewTolerance,
+                                 days: overviewDays,
+                              },
+                           });
+                        } else {
+                           sendMsg(BEST_STATIC_PARAM, {
+                              start,
+                              end,
+                           });
+                        }
                      }}
                      disabled={!done}
                      style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
@@ -317,7 +319,7 @@ function TestChart() {
                      {'Go'}
                   </button>
                   <button
-                     onClick={() => stopWorker()}
+                     onClick={() => sendMsg(SIMULATION, 'stop')}
                      disabled={done}
                      style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
                   >
@@ -341,8 +343,10 @@ function TestChart() {
                      if (!e.target.checked) {
                         const start = moment(inputStart).unix();
                         const end = moment(inputEnd).unix();
-                        const globalData = getResult(rawData, start, end);
-                        setGlobalData(globalData);
+                        sendMsg(BEST_STATIC_PARAM, {
+                           start,
+                           end,
+                        });
                      }
                   }}
                />
@@ -381,13 +385,16 @@ function TestChart() {
                      onClick={() => {
                         const start = moment(inputStart).unix();
                         const end = moment(inputEnd).unix();
-                        const globalData = getResult(rawData, start, end, {
-                           tolerance: overviewTolerance,
-                           days: overviewDays,
+                        sendMsg(GIVEN_STATIC_PARAM, {
+                           start,
+                           end,
+                           optimumParams: {
+                              tolerance: overviewTolerance,
+                              days: overviewDays,
+                           },
                         });
-                        setGlobalData(globalData);
-                        setChosenStart(moment.unix(start));
-                        setChosenEnd(moment.unix(end));
+
+                        // worker.onerror = (err) => err;
                      }}
                      disabled={!done}
                      style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
@@ -499,150 +506,6 @@ function TestChart() {
          )}
       </>
    );
-}
-
-function getResult(rawData, start, end, withOptimumParams) {
-   if (withOptimumParams) {
-      const { tolerance, days } = withOptimumParams;
-      let sourceData = rawData;
-      if (start !== undefined) {
-         if (end !== undefined) {
-            sourceData = rawData.filter((data) => data.date >= start && data.date <= end);
-         } else {
-            end = rawData[rawData.length - 1].date;
-            sourceData = rawData.filter((data) => data.date >= start);
-         }
-      }
-      const data = sourceData.map((dayData) => dayData.value);
-      const labels = sourceData.map((dayData) => moment.unix(dayData.date).format('D. MMM YYYY'));
-      const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(days, data, tolerance);
-      const { annotations, lastSold } = setBuySellSignals(days, labels, data, lineXMinus, lineXPlus);
-      const { savings, transactions } = lastSold;
-      const chartData = {
-         labels,
-         datasets: [
-            getNewDataSet(data, 'Currency'),
-            getNewDataSet(lineXMinus, `- ${tolerance}%`, '#6610f2'),
-            getNewDataSet(lineXPlus, `+ ${tolerance}%`, '#f86c6b'),
-            getNewDataSet(lineX, `${days} days`, '#20c997'),
-         ],
-      };
-
-      return { chartData, annotations, topX: [{ savings, transactions, tolerance, days }] };
-   }
-
-   const { chart3dData, topX, data, labels } = evaluateParams([...rawData], start, end);
-
-   if (topX.length === 0 || (topX.length > 0 && topX[0].savings <= INITIAL_MONEY)) {
-      return {
-         chartData: {
-            labels,
-            datasets: [getNewDataSet(data, 'Currency')],
-         },
-         chart3dData,
-         annotations: [],
-         topX,
-         plotData: data,
-         plotLabels: labels,
-      };
-   }
-
-   const { savings, days, tolerance, transactions } = topX[0];
-
-   const { xDayLine: lineX, plusLimit: lineXPlus, minusLimit: lineXMinus } = getXDayLineData(days, data, tolerance);
-
-   const { annotations, lastSold } = setBuySellSignals(days, labels, data, lineXMinus, lineXPlus);
-   // console.log('annotations :>> ', annotations);
-   // console.log('line200 :>> ', line200);
-
-   const chartData = {
-      labels,
-      datasets: [
-         getNewDataSet(data, 'Currency'),
-         getNewDataSet(lineXMinus, `- ${tolerance}%`, '#6610f2'),
-         getNewDataSet(lineXPlus, `+ ${tolerance}%`, '#f86c6b'),
-         getNewDataSet(lineX, `${days} days`, '#20c997'),
-      ],
-   };
-
-   return { chartData, chart3dData, annotations, topX, plotData: data, plotLabels: labels };
-}
-
-function getXDayLineData(days, data, tolerance) {
-   const xDayLine = data.map((dayData, idx) => {
-      if (idx >= days) {
-         const sectionXdays = data.slice(idx - days, idx);
-
-         const sumXdays = sectionXdays.reduce((sum, curr) => (sum += curr), 0);
-         return sumXdays / days;
-      } else {
-         return dayData;
-      }
-   });
-
-   const xDayLineMinus = xDayLine.map((value) => {
-      return value - (value / 100) * tolerance;
-   });
-
-   const xDayLinePlus = xDayLine.map((value) => {
-      return value + (value / 100) * tolerance;
-   });
-   return { xDayLine, plusLimit: xDayLinePlus, minusLimit: xDayLineMinus };
-}
-
-function setBuySellSignals(days, labels, lineData, lineDataMinus5, lineDataPlus5) {
-   const annotations = [];
-
-   let pieces = 0;
-   let currentMoney = INITIAL_MONEY;
-   let transactionCount = 0;
-
-   let lastSoldDiff = 0;
-   let lastBuyDiff = 0;
-   let counter = 0;
-   let lastAction = 'sold';
-
-   let lastSold = { savings: INITIAL_MONEY, date: labels[0] };
-   // console.log('labels :>> ', labels);
-   // console.log('lineData :>> ', lineData);
-
-   for (let index = days; index < lineData.length; index++) {
-      const price = lineData[index];
-      const priceMinusTolerance = lineDataMinus5[index];
-      const pricePlusTolerance = lineDataPlus5[index];
-      const label = labels[index];
-      const currentSoldDiff = price - priceMinusTolerance;
-      const currentBuyDiff = price - pricePlusTolerance;
-
-      if (lastAction === 'sold' && lastBuyDiff <= 0 && currentBuyDiff > 0) {
-         annotations.push(getAnnotation(label, 'Buy', '#6610f2', counter));
-         lastSoldDiff = currentSoldDiff;
-         lastBuyDiff = currentBuyDiff;
-         lastAction = 'buy';
-
-         pieces = currentMoney / price;
-         currentMoney = 0;
-         // console.log(`BUY :>> ${label} (pieces: ${pieces} / price: ${price})`);
-         transactionCount++;
-      }
-      // console.log('lastSoldDiff :>> ', lastSoldDiff);
-      // console.log('currentSoldDiff :>> ', currentSoldDiff);
-
-      if (lastAction === 'buy' && lastSoldDiff > 0 && currentSoldDiff <= 0) {
-         annotations.push(getAnnotation(label, 'Sold', '#4dbd74', counter));
-         lastSoldDiff = currentSoldDiff;
-         lastBuyDiff = currentBuyDiff;
-         lastAction = 'sold';
-
-         currentMoney = price * pieces;
-         pieces = 0;
-         // console.log(`SOLD :>> ${label} (savings: ${currentMoney} / price: ${price})`);
-         transactionCount++;
-         lastSold = { savings: currentMoney, date: label, transactions: transactionCount };
-      }
-      counter++;
-   }
-   return { annotations, lastSold };
 }
 
 export default TestChart;

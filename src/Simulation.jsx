@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Line } from 'react-chartjs-2';
+import { Line, Bar } from 'react-chartjs-2';
 import moment from 'moment';
 
 // const rawData = require('./data/historyLink.json');
@@ -28,6 +28,10 @@ const columns = [
    {
       text: 'Action',
       dataField: 'action',
+   },
+   {
+      text: 'Rule',
+      dataField: 'rule',
    },
    {
       text: 'Date',
@@ -176,8 +180,9 @@ function TestChart() {
    const [overviewDays, setOverviewDays] = useState(16);
    const [simuCalcWindowValue, setSimuCalcWindowValue] = useState(30);
 
-   const [inputStart, setInputStart] = useState('2020-05-22');
-   const [inputEnd, setInputEnd] = useState('2021-01-03');
+   const [inputStart, setInputStart] = useState('2017-08-08');
+   const [inputEnd, setInputEnd] = useState('2018-02-09');
+   // const [inputEnd, setInputEnd] = useState('2018-03-03');
 
    const [chosenStart, setChosenStart] = useState('2020-05-22');
    const [chosenEnd, setChosenEnd] = useState('2021-01-03');
@@ -253,6 +258,24 @@ function TestChart() {
    const [annotations, setAnnotations] = useState([]);
    const [transactionList, setTransactionList] = useState([]);
    const [chartData, setChartData] = useState();
+   let percentData = {};
+   let annotationsWithoutLabels = [];
+   if (chartData) {
+      const chartValues = chartData.datasets[0].data;
+      const percentValues = [0];
+      chartValues.forEach((data, idx, array) => {
+         if (idx > 0) {
+            percentValues.push((data * 100) / array[idx - 1] - 100);
+         }
+      });
+      percentData = {
+         datasets: [getNewDataSet(percentValues, 'Percentages')],
+         labels: [...chartData.labels],
+      };
+      annotationsWithoutLabels = annotations.map((an) => {
+         return { ...an, label: { ...an.label, content: '' } };
+      });
+   }
 
    // const simuStart = moment('2016-09-05').unix();
    // const simuStart = moment(chosenStart).unix();
@@ -474,7 +497,7 @@ function TestChart() {
                   {transactionCount !== 0 && (
                      <>
                         <div>{`Balance: ${numeral(
-                           transactionList[transactionCount - 1].savings === 0
+                           transactionCount > 1 && transactionList[transactionCount - 1].savings === 0
                               ? transactionList[transactionCount - 2].savings
                               : transactionList[transactionCount - 1].savings,
                         ).format('0,0.000a')}`}</div>
@@ -486,6 +509,9 @@ function TestChart() {
                </div>
                <div style={{ position: 'relative', height: '600px', width: '100%' }}>
                   <Line ref={lineRef} data={chartData} options={getOptionsWithAnnotations(getOptions(), annotations)} />
+               </div>
+               <div style={{ position: 'relative', height: '300px', width: '100%' }}>
+                  <Bar data={percentData} options={getOptionsWithAnnotations(getOptions(), annotationsWithoutLabels)} />
                </div>
                <div style={{ position: 'relative', width: '100%' }}>
                   <div style={{ fontSize: '26px', margin: '20px 0px' }}>Simulation</div>

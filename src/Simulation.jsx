@@ -184,8 +184,8 @@ function TestChart() {
    const [inputEnd, setInputEnd] = useState('2018-02-09');
    // const [inputEnd, setInputEnd] = useState('2018-03-03');
 
-   const [chosenStart, setChosenStart] = useState('2020-05-22');
-   const [chosenEnd, setChosenEnd] = useState('2021-01-03');
+   const [chosenStart, setChosenStart] = useState(moment('2020-05-22'));
+   const [chosenEnd, setChosenEnd] = useState(moment('2021-01-03'));
 
    const [percentageDone, setPercentageDone] = useState(0);
 

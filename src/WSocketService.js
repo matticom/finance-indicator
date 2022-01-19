@@ -20,6 +20,15 @@ export function setListener(type, handler) {
    socket.on(type, handler);
 }
 
+export function setListenerOnDisconnect(handler) {
+   console.error('disconnected!!!!!!!!!');
+   socket.on('disconnect', handler);
+}
+
+export function setListenerOnConnect(handler) {
+   socket.on('connect', handler);
+}
+
 export function removeListener(type) {
    socket.off(type);
 }

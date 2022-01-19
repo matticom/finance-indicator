@@ -12,7 +12,7 @@ import 'react-bootstrap-table-next/dist/react-bootstrap-table2.min.css';
 import 'chartjs-plugin-annotation';
 
 import numeral from 'numeral';
-import { removeListener, sendMsg, setListener } from './WSocketService';
+import { removeListener, sendMsg, setListener, setListenerOnConnect, setListenerOnDisconnect } from './WSocketService';
 import { BEST_STATIC_PARAM, GIVEN_STATIC_PARAM, SIMULATION } from './constants';
 
 function addHiddenKeyColumn(rows) {
@@ -173,6 +173,7 @@ function TestChart() {
    const lineRef = useRef(null);
 
    const [done, setDone] = useState(true);
+   const [calculationActive, setCalculationActiveState] = useState(false);
    const [optimumParams, setOptimumParams] = useState(false);
    const [simuCalcWindow, setSimuCalcWindow] = useState(false);
 
@@ -191,8 +192,11 @@ function TestChart() {
 
    const [globalData, setGlobalData] = useState();
 
+   const [connected, setConnectState] = useState(true);
+
    useEffect(() => {
       setListener(SIMULATION, ({ type, data }) => {
+         setCalculationActiveState(true);
          console.log('new Msg :>> ', { type, data });
          if (type === 'cycle update basic') {
             const { counter, currentLoop, maxLoops, startLabel, currentLabel, result } = data;
@@ -220,10 +224,12 @@ function TestChart() {
             setChartData(chartData);
             setTransactionList(transactionList);
             setAnnotations(annotations);
+            setCalculationActiveState(false);
             setDone(true);
             return;
          }
          if (type === 'stop') {
+            setCalculationActiveState(false);
             setDone(true);
             return;
          }
@@ -239,6 +245,16 @@ function TestChart() {
          setGlobalData(response);
          setChosenStart(moment.unix(start));
          setChosenEnd(moment.unix(end));
+      });
+
+      setListenerOnDisconnect(() => {
+         setConnectState(false);
+      });
+
+      setListenerOnConnect(() => {
+         if (!connected) {
+            setConnectState(true);
+         }
       });
 
       return () => {
@@ -336,7 +352,7 @@ function TestChart() {
                            });
                         }
                      }}
-                     disabled={!done}
+                     // disabled={!done || calculationActive || !(!done && calculationActive && !connected)}
                      style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
                   >
                      {'Go'}
@@ -419,7 +435,6 @@ function TestChart() {
 
                         // worker.onerror = (err) => err;
                      }}
-                     disabled={!done}
                      style={{ color: 'rgb(240,240,240)', backgroundColor: 'rgb(35,35,35)', padding: '3px 10px' }}
                   >
                      {'Go'}

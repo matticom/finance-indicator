@@ -35,7 +35,7 @@ const MIN_TOLERANCE = 3;
 const MAX_TOLERANCE = 30;
 const MIN_DAYS = 10;
 const MAX_DAYS = 200;
-const MAX_TRANSACTIONS_PER_YEAR = 12;
+export const MAX_TRANSACTIONS_PER_YEAR = 12;
 const INITIAL_MONEY = 1000;
 
 export function evaluateParams(rawData, start, end) {
@@ -64,6 +64,7 @@ export function evaluateParams(rawData, start, end) {
    });
 
    const result = [];
+   const resultTransactions = [];
    const top10 = [];
 
    const daysParams = [];
@@ -78,6 +79,7 @@ export function evaluateParams(rawData, start, end) {
 
    daysParams.forEach((daysParam) => {
       const tolerancesRes = [];
+      const tolerancesTransactionRes = [];
       toleranceParams.forEach((toleranceParam) => {
          const {
             xDayLine: lineX,
@@ -88,9 +90,11 @@ export function evaluateParams(rawData, start, end) {
          const { savings, date, transactions } = lastSold;
          // transaction filter application
          tolerancesRes.push(transactions > maxTransactions ? INITIAL_MONEY : savings);
+         tolerancesTransactionRes.push(transactions);
          top10.push({ savings, days: daysParam, tolerance: toleranceParam, transactions, currentState });
       });
       result.push(tolerancesRes);
+      resultTransactions.push(tolerancesTransactionRes);
    });
    // console.log('top10 :>> ', top10);
 
@@ -100,7 +104,7 @@ export function evaluateParams(rawData, start, end) {
    filteredTop10 = filteredTop10.slice(0, 25);
    // console.log('top25 :>> ', filteredTop10);
 
-   return { chart3dData: result, topX: filteredTop10, data, labels };
+   return { chart3dData: result, chart3dDataTA: resultTransactions, topX: filteredTop10, data, labels };
    // console.log('result :>> ', result);
 }
 

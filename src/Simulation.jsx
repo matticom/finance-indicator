@@ -4,7 +4,8 @@ import moment from 'moment';
 
 // const rawData = require('./data/historyLink.json');
 // const rawData = require('./data/historyBTC.json');
-const rawData = require('./data/LongHistoryBTC.json');
+// const rawData = require('./data/LongHistoryBTC.json');
+const rawData = require('./data/historyGold.json');
 
 import BootstrapTable from 'react-bootstrap-table-next';
 import 'react-bootstrap-table-next/dist/react-bootstrap-table2.min.css';
@@ -175,15 +176,18 @@ function TestChart() {
    const [done, setDone] = useState(true);
    const [calculationActive, setCalculationActiveState] = useState(false);
    const [optimumParams, setOptimumParams] = useState(false);
-   const [simuCalcWindow, setSimuCalcWindow] = useState(false);
+   const [simuCalcWindow, setSimuCalcWindow] = useState(true);
 
    const [overviewTolerance, setOverviewTolerance] = useState(4);
    const [overviewDays, setOverviewDays] = useState(16);
    const [simuCalcWindowValue, setSimuCalcWindowValue] = useState(30);
 
-   const [inputStart, setInputStart] = useState('2017-08-08');
-   const [inputEnd, setInputEnd] = useState('2018-02-09');
-   // const [inputEnd, setInputEnd] = useState('2018-03-03');
+   // BTC long
+   // const [inputStart, setInputStart] = useState('2017-08-08');
+   // const [inputEnd, setInputEnd] = useState('2018-02-09');
+
+   const [inputStart, setInputStart] = useState('2020-03-10');
+   const [inputEnd, setInputEnd] = useState('2021-06-28');
 
    const [chosenStart, setChosenStart] = useState(moment('2020-05-22'));
    const [chosenEnd, setChosenEnd] = useState(moment('2021-01-03'));

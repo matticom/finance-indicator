@@ -2,6 +2,7 @@ import { io } from 'socket.io-client';
 
 const socket = io('http://localhost:8100', {
    path: '/notification/',
+   timeout: 300 * 1000,
 });
 
 socket.on('connect', () => {
